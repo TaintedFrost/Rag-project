@@ -1,3 +1,5 @@
+import json
+
 import pymupdf
 from pathlib import Path
 
@@ -28,20 +30,40 @@ def extract_pages(pdf_path):
 
 
 def create_chunks(text, chunk_size=1000, overlap=200):
-    """Split text into overlapping chunks."""
+    """Split text into chunks while trying to preserve paragraph boundaries."""
+
+    paragraphs = [
+        paragraph.strip()
+        for paragraph in text.split("\n")
+        if paragraph.strip()
+    ]
 
     chunks = []
+    current_chunk = ""
 
-    start = 0
+    for paragraph in paragraphs:
 
-    while start < len(text):
-        end = start + chunk_size
+        # If adding this paragraph stays within the limit,
+        # keep building the current chunk.
+        if len(current_chunk) + len(paragraph) + 1 <= chunk_size:
 
-        chunk = text[start:end]
+            if current_chunk:
+                current_chunk += "\n"
 
-        chunks.append(chunk)
+            current_chunk += paragraph
 
-        start += chunk_size - overlap
+        else:
+
+            # Save the current chunk
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # Start a new chunk
+            current_chunk = paragraph
+
+    # Save the final chunk
+    if current_chunk:
+        chunks.append(current_chunk)
 
     return chunks
 
@@ -77,6 +99,15 @@ for pdf_path in pdf_files:
 
 print()
 print(f"Total chunks created: {len(all_chunks)}")
+
+
+output_path = Path("chunks.json")
+
+with output_path.open("w", encoding="utf-8") as file:
+    json.dump(all_chunks, file, ensure_ascii=False, indent=2)
+
+print(f"Saved chunks to: {output_path}")
+
 
 print("\nFirst 3 chunks:\n")
 
