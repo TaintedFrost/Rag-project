@@ -3,6 +3,7 @@ import re
 
 import faiss
 import numpy as np
+from ollama import chat
 from sentence_transformers import SentenceTransformer
 
 
@@ -11,14 +12,15 @@ from sentence_transformers import SentenceTransformer
 # ============================================================
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+LLM_NAME = "qwen3:4b"
 
 INDEX_PATH = "faiss_index.bin"
 METADATA_PATH = "chunk_metadata.json"
 
-# We retrieve many candidates first.
+# Retrieve more candidates initially.
 INITIAL_RESULTS = 50
 
-# Number of results shown to the user.
+# Number of chunks that will actually be sent to the LLM.
 FINAL_RESULTS = 5
 
 
@@ -35,7 +37,7 @@ DOCUMENT_CATEGORIES = {
 
 
 # ============================================================
-# Keywords associated with each category
+# Keywords used to detect the topic of a question
 # ============================================================
 
 CATEGORY_KEYWORDS = {
@@ -55,7 +57,6 @@ CATEGORY_KEYWORDS = {
         "licență",
         "licenta",
         "licențiat",
-        "licență",
         "studii de licență",
         "ciclu de licență",
         "admitere licență",
@@ -64,10 +65,10 @@ CATEGORY_KEYWORDS = {
 
     "burse": [
         "bursă",
+        "bursa",
         "burse",
         "bursei",
         "burselor",
-        "bursa",
         "bursă de performanță",
         "bursă de merit",
         "bursă socială",
@@ -88,10 +89,10 @@ CATEGORY_KEYWORDS = {
 
 
 # ============================================================
-# Load FAISS and metadata
+# Load FAISS index and metadata
 # ============================================================
 
-print("Loading data...")
+print("Loading RAG data...")
 
 index = faiss.read_index(INDEX_PATH)
 
@@ -107,16 +108,16 @@ print(f"Loaded {len(chunks)} chunks.")
 
 print(f"Loading embedding model: {MODEL_NAME}")
 
-model = SentenceTransformer(MODEL_NAME)
+embedding_model = SentenceTransformer(MODEL_NAME)
 
 
 # ============================================================
-# Text normalization
+# Text helpers
 # ============================================================
 
 def normalize_text(text):
     """
-    Lowercase the text and return its words.
+    Lowercase text and extract words.
     Romanian diacritics are preserved.
     """
 
@@ -127,14 +128,30 @@ def normalize_text(text):
     )
 
 
+def keyword_score(query, text):
+    """
+    Measure how many unique query words also occur in the text.
+    """
+
+    query_words = set(normalize_text(query))
+    text_words = set(normalize_text(text))
+
+    if not query_words:
+        return 0.0
+
+    overlap = query_words.intersection(text_words)
+
+    return len(overlap) / len(query_words)
+
+
 # ============================================================
-# Detect likely document category
+# Detect document category
 # ============================================================
 
 def detect_categories(query):
     """
-    Determine which document categories are relevant
-    based on important words in the user's question.
+    Detect which document type is most likely relevant
+    to the user's question.
     """
 
     query_lower = query.lower()
@@ -153,73 +170,35 @@ def detect_categories(query):
 
 
 # ============================================================
-# Keyword score
+# Calculate topic score
 # ============================================================
 
-def keyword_score(query, text):
-    """
-    Calculate the proportion of query words that
-    also appear in the retrieved text.
-    """
-
-    query_words = set(normalize_text(query))
-    text_words = set(normalize_text(text))
-
-    if not query_words:
-        return 0.0
-
-    overlap = query_words.intersection(text_words)
-
-    return len(overlap) / len(query_words)
-
-
-# ============================================================
-# Category relevance
-# ============================================================
-
-def category_score(source, detected_categories):
-    """
-    Give a large bonus when a retrieved chunk comes
-    from the document category implied by the question.
-    """
+def topic_score(source, detected_categories):
 
     if not detected_categories:
         return 0.0
 
-    category = DOCUMENT_CATEGORIES.get(source)
+    source_category = DOCUMENT_CATEGORIES.get(source)
 
-    if category in detected_categories:
+    if source_category in detected_categories:
         return 1.0
 
     return 0.0
 
 
 # ============================================================
-# Search
+# Retrieve relevant chunks
 # ============================================================
 
-def search(query, top_k=FINAL_RESULTS):
-
-    # --------------------------------------------------------
-    # 1. Detect topic
-    # --------------------------------------------------------
+def retrieve(query, top_k=FINAL_RESULTS):
 
     detected_categories = detect_categories(query)
 
-    if detected_categories:
-        print(
-            f"\nDetected topic: "
-            f"{', '.join(detected_categories)}"
-        )
-    else:
-        print("\nDetected topic: general")
-
-
     # --------------------------------------------------------
-    # 2. Convert query to embedding
+    # Create embedding for the question
     # --------------------------------------------------------
 
-    query_embedding = model.encode(
+    query_embedding = embedding_model.encode(
         [query],
         normalize_embeddings=True
     )
@@ -231,7 +210,7 @@ def search(query, top_k=FINAL_RESULTS):
 
 
     # --------------------------------------------------------
-    # 3. Retrieve many candidates
+    # Semantic search
     # --------------------------------------------------------
 
     semantic_scores, indices = index.search(
@@ -244,10 +223,10 @@ def search(query, top_k=FINAL_RESULTS):
 
 
     # --------------------------------------------------------
-    # 4. Score candidates
+    # Combine semantic + lexical + topic scores
     # --------------------------------------------------------
 
-    for semantic_score, index_number in zip(
+    for semantic_similarity, index_number in zip(
         semantic_scores[0],
         indices[0]
     ):
@@ -259,72 +238,55 @@ def search(query, top_k=FINAL_RESULTS):
 
         source = chunk["source"]
 
-        lexical_score = keyword_score(
+        lexical = keyword_score(
             query,
             chunk["text"]
         )
 
-        topic_score = category_score(
+        topic = topic_score(
             source,
             detected_categories
         )
 
-
-        # ----------------------------------------------------
-        # Combined score
-        #
-        # Semantic similarity:
-        # 60%
-        #
-        # Keyword overlap:
-        # 15%
-        #
-        # Correct document category:
-        # 25%
-        # ----------------------------------------------------
-
-        combined_score = (
-            0.60 * float(semantic_score)
+        combined = (
+            0.60 * float(semantic_similarity)
             +
-            0.15 * lexical_score
+            0.15 * lexical
             +
-            0.25 * topic_score
+            0.25 * topic
         )
 
-
         candidates.append({
-            "semantic_score": float(semantic_score),
-            "keyword_score": float(lexical_score),
-            "topic_score": float(topic_score),
-            "combined_score": combined_score,
             "text": chunk["text"],
             "source": source,
             "page": chunk["page"],
+            "semantic_score": float(semantic_similarity),
+            "keyword_score": lexical,
+            "topic_score": topic,
+            "combined_score": combined,
         })
 
 
     # --------------------------------------------------------
-    # 5. If a specific topic was detected, prioritize only
-    #    chunks from that document category.
+    # If a specific category was detected, prioritize chunks
+    # belonging to that category.
     # --------------------------------------------------------
 
     if detected_categories:
 
-        topic_candidates = [
+        category_candidates = [
             candidate
             for candidate in candidates
             if DOCUMENT_CATEGORIES.get(candidate["source"])
             in detected_categories
         ]
 
-        # If we found candidates in the correct document,
-        # use those instead of unrelated documents.
-        if topic_candidates:
-            candidates = topic_candidates
+        if category_candidates:
+            candidates = category_candidates
 
 
     # --------------------------------------------------------
-    # 6. Sort
+    # Sort by combined score
     # --------------------------------------------------------
 
     candidates.sort(
@@ -332,16 +294,99 @@ def search(query, top_k=FINAL_RESULTS):
         reverse=True
     )
 
-
-    return candidates[:top_k]
+    return candidates[:top_k], detected_categories
 
 
 # ============================================================
-# Interactive interface
+# Build the prompt for the LLM
+# ============================================================
+
+def build_prompt(query, retrieved_chunks):
+
+    context_parts = []
+
+    for i, chunk in enumerate(retrieved_chunks, start=1):
+
+        context_parts.append(
+            f"""
+CONTEXT {i}
+Sursă: {chunk['source']}
+Pagina: {chunk['page']}
+
+{chunk['text']}
+"""
+        )
+
+    context = "\n".join(context_parts)
+
+    prompt = f"""
+Ești un asistent care răspunde la întrebări despre
+regulamentele Universității Naționale de Știință și
+Tehnologie POLITEHNICA București.
+
+Răspunde ÎN LIMBA ROMÂNĂ.
+
+Folosește DOAR informațiile din CONTEXT pentru a răspunde.
+
+Nu inventa informații.
+
+Dacă răspunsul nu poate fi determinat din context,
+spune clar:
+
+"Nu am găsit această informație în documentele disponibile."
+
+Răspunsul trebuie să fie clar și concis.
+
+La final, menționează sursa/sursele folosite în forma:
+
+Surse:
+- document.pdf, pagina X
+
+
+ÎNTREBARE:
+{query}
+
+
+CONTEXT:
+{context}
+"""
+
+    return prompt
+
+
+# ============================================================
+# Generate answer with Qwen
+# ============================================================
+
+def generate_answer(query, retrieved_chunks):
+
+    prompt = build_prompt(
+        query,
+        retrieved_chunks
+    )
+
+    response = chat(
+        model=LLM_NAME,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+    )
+
+    return response.message.content
+
+
+# ============================================================
+# Interactive RAG application
 # ============================================================
 
 print()
-print("Romanian RAG document search")
+print("=" * 70)
+print("ROMANIAN RAG ASSISTANT")
+print("=" * 70)
+print("Model:", LLM_NAME)
 print("Type 'exit' to stop.")
 print()
 
@@ -349,7 +394,6 @@ print()
 while True:
 
     try:
-
         query = input("Întrebare: ").strip()
 
     except (KeyboardInterrupt, EOFError):
@@ -359,6 +403,7 @@ while True:
 
 
     if query.lower() == "exit":
+        print("Exiting...")
         break
 
 
@@ -366,59 +411,63 @@ while True:
         continue
 
 
-    results = search(query)
+    # --------------------------------------------------------
+    # Retrieve
+    # --------------------------------------------------------
+
+    retrieved_chunks, detected_categories = retrieve(query)
 
 
     print()
-    print("=" * 80)
-    print("REZULTATE")
-    print("=" * 80)
+
+    if detected_categories:
+        print(
+            "Topic detectat:",
+            ", ".join(detected_categories)
+        )
+    else:
+        print("Topic detectat: general")
 
 
-    if not results:
+    print("\nFragmente recuperate:")
 
-        print("\nNu au fost găsite rezultate relevante.")
-        print()
-
-        continue
-
-
-    for i, result in enumerate(results, start=1):
-
-        print()
-        print(f"--- Rezultat {i} ---")
+    for i, chunk in enumerate(
+        retrieved_chunks,
+        start=1
+    ):
 
         print(
-            f"Semantic similarity: "
-            f"{result['semantic_score']:.4f}"
+            f"{i}. {chunk['source']}, "
+            f"pagina {chunk['page']} "
+            f"(scor {chunk['combined_score']:.4f})"
         )
 
-        print(
-            f"Keyword score:       "
-            f"{result['keyword_score']:.4f}"
+
+    # --------------------------------------------------------
+    # Generate answer
+    # --------------------------------------------------------
+
+    print("\nSe generează răspunsul...\n")
+
+    try:
+
+        answer = generate_answer(
+            query,
+            retrieved_chunks
         )
 
-        print(
-            f"Topic score:         "
-            f"{result['topic_score']:.4f}"
-        )
+        print("=" * 70)
+        print("RĂSPUNS")
+        print("=" * 70)
 
-        print(
-            f"Combined score:      "
-            f"{result['combined_score']:.4f}"
-        )
+        print(answer)
 
-        print(
-            f"Sursă:               "
-            f"{result['source']}"
-        )
+    except Exception as error:
 
-        print(
-            f"Pagina:              "
-            f"{result['page']}"
-        )
+        print("=" * 70)
+        print("EROARE LLM")
+        print("=" * 70)
 
-        print()
-        print(result["text"])
+        print(error)
 
     print()
