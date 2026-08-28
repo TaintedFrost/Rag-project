@@ -1,0 +1,126 @@
+[
+    {
+        "id": "Q01",
+        "category": "burse",
+        "question": "Care sunt condițiile pentru acordarea bursei de performanță?",
+        "expected_source": "doc3.pdf",
+        "expected_pages": [7, 12],
+        "expected_keywords": [
+            "30",
+            "puncte",
+            "9,70"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q02",
+        "category": "burse",
+        "question": "Ce activități contribuie la punctajul pentru bursa de performanță?",
+        "expected_source": "doc3.pdf",
+        "expected_pages": [12],
+        "expected_keywords": [
+            "concursuri",
+            "publicate",
+            "cercetare",
+            "invenții",
+            "sesiuni"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q03",
+        "category": "burse",
+        "question": "Cum se calculează media pentru bursă în semestrul I pentru studenții din anii II-IV de licență?",
+        "expected_source": "doc3.pdf",
+        "expected_pages": [5],
+        "expected_keywords": [
+            "media anuală",
+            "anul precedent"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q04",
+        "category": "doctorat",
+        "question": "Care sunt condițiile privind numărul de credite necesare pentru înscrierea la doctorat?",
+        "expected_source": "doc1.pdf",
+        "expected_pages": [4],
+        "expected_keywords": [
+            "300",
+            "credite",
+            "ECTS"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q05",
+        "category": "doctorat",
+        "question": "Care este durata studiilor universitare de doctorat?",
+        "expected_source": "doc1.pdf",
+        "expected_pages": [3],
+        "expected_keywords": [
+            "4 ani"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q06",
+        "category": "masterat",
+        "question": "Cum se organizează admiterea la studiile universitare de masterat?",
+        "expected_source": "doc4.pdf",
+        "expected_pages": [3],
+        "expected_keywords": [
+            "concurs",
+            "facultăților",
+            "acreditate"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q07",
+        "category": "masterat",
+        "question": "Cum se face repartizarea candidaților pe programele de masterat?",
+        "expected_source": "doc4.pdf",
+        "expected_pages": [6],
+        "expected_keywords": [
+            "opțiunile",
+            "ordinea descrescătoare",
+            "mediilor"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q08",
+        "category": "licenta",
+        "question": "Ce condiție trebuie îndeplinită privind examenul de Bacalaureat pentru admiterea la licență?",
+        "expected_source": "doc2.pdf",
+        "expected_pages": [11],
+        "expected_keywords": [
+            "bacalaureat",
+            "diplomă"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q09",
+        "category": "licenta",
+        "question": "Când începe și când se termină etapa de validare și înmatriculare pentru admiterea la licență?",
+        "expected_source": "doc2.pdf",
+        "expected_pages": [18],
+        "expected_keywords": [
+            "15 iulie",
+            "17 iulie",
+            "înmatriculare"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q10",
+        "category": "general",
+        "question": "Care este taxa lunară pentru transportul în comun al studenților la Politehnica București?",
+        "expected_source": null,
+        "expected_pages": [],
+        "expected_keywords": [],
+        "should_refuse": true
+    }
+]

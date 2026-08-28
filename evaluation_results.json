@@ -1,0 +1,443 @@
+{
+  "configuration": {
+    "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    "llm": "qwen3:1.7b",
+    "questions": 10,
+    "search_results": 10,
+    "final_results": 3,
+    "max_generated_tokens": 180
+  },
+  "summary": {
+    "retrieval_accuracy": 0.9,
+    "answer_accuracy": 0.8,
+    "average_keyword_coverage": 0.7833333333333333,
+    "average_retrieval_time_seconds": 0.02087480000918731,
+    "average_llm_time_seconds": 4.462694270012435,
+    "average_total_score": 0.8416666666666666,
+    "total_evaluation_time_seconds": 44.84339539997745
+  },
+  "questions": [
+    {
+      "id": "Q01",
+      "question": "Care sunt condițiile pentru acordarea bursei de performanță?",
+      "category": "burse",
+      "expected_source": "doc3.pdf",
+      "expected_pages": [
+        7,
+        12
+      ],
+      "retrieved_sources": [
+        "doc3.pdf",
+        "doc3.pdf",
+        "doc3.pdf"
+      ],
+      "retrieved_pages": [
+        5,
+        12,
+        13
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Condițiile pentru acordarea bursei de performanță includ:\n- Media pentru bursă se calculează în funcție de anul de studiu și semestrul considerat.\n- Media este determinată în ordinea descrescătoare a mediilor.\n- Punctajul minim este de 30 de puncte.\n- Bursele sunt acordate în cuantum de 400, 300, 200 și 100 lei pe lucrare științifică, cu condiția încadrării în valoare totală de maxim 1000 lei/sesiune și un minim de 50 lei/persoană.\n- Numărul de burse nu poate să depășească 2",
+      "expected_keywords": [
+        "30",
+        "puncte",
+        "9,70"
+      ],
+      "matched_keywords": [
+        "30",
+        "puncte"
+      ],
+      "missing_keywords": [
+        "9,70"
+      ],
+      "keyword_coverage": 0.6666666666666666,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.04068600002210587,
+      "llm_time_seconds": 5.446689200005494,
+      "prompt_tokens": 1050,
+      "generated_tokens": 180,
+      "total_score": 0.8333333333333333
+    },
+    {
+      "id": "Q02",
+      "question": "Ce activități contribuie la punctajul pentru bursa de performanță?",
+      "category": "burse",
+      "expected_source": "doc3.pdf",
+      "expected_pages": [
+        12
+      ],
+      "retrieved_sources": [
+        "doc3.pdf",
+        "doc3.pdf",
+        "doc3.pdf"
+      ],
+      "retrieved_pages": [
+        6,
+        12,
+        5
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Activitățile care contribuie la punctajul pentru bursa de performanță includ:  \n- Concursuri profesionale internaționale și naționale  \n- Lucrări și articole publicate pe plan național și internațional  \n- Participare la contracte de cercetare  \n- Invenții și inovații  \n- Sesiuni de comunicări științifice studențești  \n- Alte activități deosebite prezentate în CV  \n\nSurse:  \nCONTEXT 2  \nPagina: 12",
+      "expected_keywords": [
+        "concursuri",
+        "publicate",
+        "cercetare",
+        "invenții",
+        "sesiuni"
+      ],
+      "matched_keywords": [
+        "concursuri",
+        "publicate",
+        "cercetare",
+        "invenții",
+        "sesiuni"
+      ],
+      "missing_keywords": [],
+      "keyword_coverage": 1.0,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.019522399990819395,
+      "llm_time_seconds": 5.333842899999581,
+      "prompt_tokens": 1318,
+      "generated_tokens": 135,
+      "total_score": 1.0
+    },
+    {
+      "id": "Q03",
+      "question": "Cum se calculează media pentru bursă în semestrul I pentru studenții din anii II-IV de licență?",
+      "category": "burse",
+      "expected_source": "doc3.pdf",
+      "expected_pages": [
+        5
+      ],
+      "retrieved_sources": [
+        "doc3.pdf",
+        "doc3.pdf",
+        "doc3.pdf"
+      ],
+      "retrieved_pages": [
+        5,
+        8,
+        7
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Media pentru bursă în semestrul I pentru studenții din anii II-IV de licență se calculează ca media anuală din anul precedent.  \n\nSurse:  \nFolosește exact numele fișierului și pagina din context.  \nSursa: doc3.pdf  \nPagina: 5",
+      "expected_keywords": [
+        "media anuală",
+        "anul precedent"
+      ],
+      "matched_keywords": [
+        "media anuală",
+        "anul precedent"
+      ],
+      "missing_keywords": [],
+      "keyword_coverage": 1.0,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.022172000026330352,
+      "llm_time_seconds": 3.6908360000234097,
+      "prompt_tokens": 1039,
+      "generated_tokens": 77,
+      "total_score": 1.0
+    },
+    {
+      "id": "Q04",
+      "question": "Care sunt condițiile privind numărul de credite necesare pentru înscrierea la doctorat?",
+      "category": "doctorat",
+      "expected_source": "doc1.pdf",
+      "expected_pages": [
+        4
+      ],
+      "retrieved_sources": [
+        "doc1.pdf",
+        "doc1.pdf",
+        "doc1.pdf"
+      ],
+      "retrieved_pages": [
+        4,
+        2,
+        3
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Numărul de credite necesare pentru înscrierea la doctorat este stabilit prin ordin al ministrului educației, iar numărul de locuri în regim de finanțare de la bugetul de stat este stabilit prin ordin al ministrului educației.  \n\nSurse:  \nCONTEXT 1  \nPagina: 4  \nCONTEXT 3  \nPagina: 3",
+      "expected_keywords": [
+        "300",
+        "credite",
+        "ECTS"
+      ],
+      "matched_keywords": [
+        "credite"
+      ],
+      "missing_keywords": [
+        "300",
+        "ECTS"
+      ],
+      "keyword_coverage": 0.3333333333333333,
+      "answer_correct": false,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.017290699994191527,
+      "llm_time_seconds": 3.2755092000588775,
+      "prompt_tokens": 817,
+      "generated_tokens": 91,
+      "total_score": 0.6666666666666666
+    },
+    {
+      "id": "Q05",
+      "question": "Care este durata studiilor universitare de doctorat?",
+      "category": "doctorat",
+      "expected_source": "doc1.pdf",
+      "expected_pages": [
+        3
+      ],
+      "retrieved_sources": [
+        "doc1.pdf",
+        "doc1.pdf",
+        "doc1.pdf"
+      ],
+      "retrieved_pages": [
+        2,
+        3,
+        4
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Durata studiilor universitare de doctorat este de 4 ani.\n\nSurse: CONTEXT 2, Pagina 8",
+      "expected_keywords": [
+        "4 ani"
+      ],
+      "matched_keywords": [
+        "4 ani"
+      ],
+      "missing_keywords": [],
+      "keyword_coverage": 1.0,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.015160599956288934,
+      "llm_time_seconds": 2.980746699962765,
+      "prompt_tokens": 1053,
+      "generated_tokens": 29,
+      "total_score": 1.0
+    },
+    {
+      "id": "Q06",
+      "question": "Cum se organizează admiterea la studiile universitare de masterat?",
+      "category": "masterat",
+      "expected_source": "doc4.pdf",
+      "expected_pages": [
+        3
+      ],
+      "retrieved_sources": [
+        "doc4.pdf",
+        "doc4.pdf",
+        "doc4.pdf"
+      ],
+      "retrieved_pages": [
+        3,
+        6,
+        2
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Admiterea la studiile universitare de masterat se organizează în cadrul facultăților aprobate de Senatul Universității Naționale de Știință și Tehnologie Politehnica București și Ministerul Educației și Cercetării. Se face prin concurs, iar numărul de locuri este aprobat de Minister. În sesiunile de admitere anticipată, candidații trebuie să îndeplinească condițiile din Art. 3 aliniatul (2), iar în sesiunile iulie și septembrie 2026, absolvenții cu diplomă de licență, absolvenții cu diplomă de licență sau echivalentă",
+      "expected_keywords": [
+        "concurs",
+        "facultăților",
+        "acreditate"
+      ],
+      "matched_keywords": [
+        "concurs",
+        "facultăților"
+      ],
+      "missing_keywords": [
+        "acreditate"
+      ],
+      "keyword_coverage": 0.6666666666666666,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.019958400051109493,
+      "llm_time_seconds": 5.92785570002161,
+      "prompt_tokens": 1297,
+      "generated_tokens": 180,
+      "total_score": 0.8333333333333333
+    },
+    {
+      "id": "Q07",
+      "question": "Cum se face repartizarea candidaților pe programele de masterat?",
+      "category": "masterat",
+      "expected_source": "doc4.pdf",
+      "expected_pages": [
+        6
+      ],
+      "retrieved_sources": [
+        "doc4.pdf",
+        "doc4.pdf",
+        "doc4.pdf"
+      ],
+      "retrieved_pages": [
+        7,
+        6,
+        3
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Repartizarea candidaților pe programele de masterat se face în funcție de opțiunile candidaților, în ordinea descrescătoare a mediilor generale de admitere. Dacă programele de studii de masterat nu și-au completat formațiile de studiu în etapa precedentă, se face în modul specific descris în Context 2. \n\nSurse:  \nCONTEXT 2  \nPagina: 6",
+      "expected_keywords": [
+        "opțiunile",
+        "ordinea descrescătoare",
+        "mediilor"
+      ],
+      "matched_keywords": [
+        "opțiunile",
+        "ordinea descrescătoare",
+        "mediilor"
+      ],
+      "missing_keywords": [],
+      "keyword_coverage": 1.0,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.017399500007741153,
+      "llm_time_seconds": 4.778658600058407,
+      "prompt_tokens": 1262,
+      "generated_tokens": 108,
+      "total_score": 1.0
+    },
+    {
+      "id": "Q08",
+      "question": "Ce condiție trebuie îndeplinită privind examenul de Bacalaureat pentru admiterea la licență?",
+      "category": "licenta",
+      "expected_source": "doc2.pdf",
+      "expected_pages": [
+        11
+      ],
+      "retrieved_sources": [
+        "doc2.pdf",
+        "doc2.pdf",
+        "doc2.pdf"
+      ],
+      "retrieved_pages": [
+        18,
+        32,
+        11
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Pentru a fi admis și înmatriculat candidatul trebuie să aibă dosarul de admitere complet și să aibă promovat examenul de Bacalaureat.\n\nSurse:  \nSursa: doc2.pdf  \nPagina: 11  \nCONTEXT 3",
+      "expected_keywords": [
+        "bacalaureat",
+        "diplomă"
+      ],
+      "matched_keywords": [
+        "bacalaureat"
+      ],
+      "missing_keywords": [
+        "diplomă"
+      ],
+      "keyword_coverage": 0.5,
+      "answer_correct": false,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.018347800010815263,
+      "llm_time_seconds": 4.231991500011645,
+      "prompt_tokens": 1282,
+      "generated_tokens": 68,
+      "total_score": 0.75
+    },
+    {
+      "id": "Q09",
+      "question": "Când începe și când se termină etapa de validare și înmatriculare pentru admiterea la licență?",
+      "category": "licenta",
+      "expected_source": "doc2.pdf",
+      "expected_pages": [
+        18
+      ],
+      "retrieved_sources": [
+        "doc2.pdf",
+        "doc2.pdf",
+        "doc2.pdf"
+      ],
+      "retrieved_pages": [
+        33,
+        14,
+        40
+      ],
+      "source_correct": true,
+      "page_correct": false,
+      "retrieval_correct": false,
+      "answer": "Etapa de validare și înmatriculare începe din data de 15 iulie 2026 și se termină cu confirmarea locului obținut și participarea la glisare.  \n\nSurse:  \nFolosește exact numele fișierului și pagina din context.  \nSursa: doc2.pdf  \nPagina: 33  \nSursa: doc2.pdf  \nPagina: 14  \nSursa: doc2.pdf  \nPagina: 40",
+      "expected_keywords": [
+        "15 iulie",
+        "17 iulie",
+        "înmatriculare"
+      ],
+      "matched_keywords": [
+        "15 iulie",
+        "înmatriculare"
+      ],
+      "missing_keywords": [
+        "17 iulie"
+      ],
+      "keyword_coverage": 0.6666666666666666,
+      "answer_correct": true,
+      "should_refuse": false,
+      "refused": false,
+      "retrieval_time_seconds": 0.01873929996509105,
+      "llm_time_seconds": 5.053170899976976,
+      "prompt_tokens": 1308,
+      "generated_tokens": 117,
+      "total_score": 0.3333333333333333
+    },
+    {
+      "id": "Q10",
+      "question": "Care este taxa lunară pentru transportul în comun al studenților la Politehnica București?",
+      "category": "general",
+      "expected_source": null,
+      "expected_pages": [],
+      "retrieved_sources": [
+        "doc2.pdf",
+        "doc2.pdf",
+        "doc4.pdf"
+      ],
+      "retrieved_pages": [
+        8,
+        12,
+        5
+      ],
+      "source_correct": true,
+      "page_correct": true,
+      "retrieval_correct": true,
+      "answer": "Nu am găsit această informație în documentele disponibile.\n\nSurse: doc2.pdf, pag. 8 și doc2.pdf, pag. 12.",
+      "expected_keywords": [],
+      "matched_keywords": [],
+      "missing_keywords": [],
+      "keyword_coverage": 1.0,
+      "answer_correct": true,
+      "should_refuse": true,
+      "refused": true,
+      "retrieval_time_seconds": 0.01947130006738007,
+      "llm_time_seconds": 3.9076420000055805,
+      "prompt_tokens": 1309,
+      "generated_tokens": 41,
+      "total_score": 1.0
+    }
+  ]
+}
