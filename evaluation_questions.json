@@ -4,7 +4,7 @@
         "category": "burse",
         "question": "Care sunt condițiile pentru acordarea bursei de performanță?",
         "expected_source": "doc3.pdf",
-        "expected_pages": [7, 12],
+        "expected_pages": [5, 7, 12],
         "expected_keywords": [
             "30",
             "puncte",
@@ -41,8 +41,20 @@
     },
     {
         "id": "Q04",
+        "category": "burse",
+        "question": "Care este punctajul minim pentru bursa de performanță?",
+        "expected_source": "doc3.pdf",
+        "expected_pages": [12],
+        "expected_keywords": [
+            "30",
+            "puncte"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q05",
         "category": "doctorat",
-        "question": "Care sunt condițiile privind numărul de credite necesare pentru înscrierea la doctorat?",
+        "question": "Care este numărul minim de credite necesare pentru înscrierea la doctorat?",
         "expected_source": "doc1.pdf",
         "expected_pages": [4],
         "expected_keywords": [
@@ -53,7 +65,7 @@
         "should_refuse": false
     },
     {
-        "id": "Q05",
+        "id": "Q06",
         "category": "doctorat",
         "question": "Care este durata studiilor universitare de doctorat?",
         "expected_source": "doc1.pdf",
@@ -64,7 +76,21 @@
         "should_refuse": false
     },
     {
-        "id": "Q06",
+        "id": "Q07",
+        "category": "doctorat",
+        "question": "Ce documente trebuie depuse pentru înscrierea la doctorat?",
+        "expected_source": "doc1.pdf",
+        "expected_pages": [5],
+        "expected_keywords": [
+            "cerere de înscriere",
+            "curriculum vitae",
+            "lista de lucrări",
+            "diplome"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q08",
         "category": "masterat",
         "question": "Cum se organizează admiterea la studiile universitare de masterat?",
         "expected_source": "doc4.pdf",
@@ -77,20 +103,33 @@
         "should_refuse": false
     },
     {
-        "id": "Q07",
+        "id": "Q09",
         "category": "masterat",
         "question": "Cum se face repartizarea candidaților pe programele de masterat?",
         "expected_source": "doc4.pdf",
-        "expected_pages": [6],
+        "expected_pages": [6, 7],
         "expected_keywords": [
             "opțiunile",
             "ordinea descrescătoare",
-            "mediilor"
+            "mediilor generale"
         ],
         "should_refuse": false
     },
     {
-        "id": "Q08",
+        "id": "Q10",
+        "category": "masterat",
+        "question": "Cum sunt stabilite criteriile de departajare pentru candidații la masterat?",
+        "expected_source": "doc4.pdf",
+        "expected_pages": [6],
+        "expected_keywords": [
+            "criteriul",
+            "facultate",
+            "6 luni"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q11",
         "category": "licenta",
         "question": "Ce condiție trebuie îndeplinită privind examenul de Bacalaureat pentru admiterea la licență?",
         "expected_source": "doc2.pdf",
@@ -102,11 +141,11 @@
         "should_refuse": false
     },
     {
-        "id": "Q09",
+        "id": "Q12",
         "category": "licenta",
-        "question": "Când începe și când se termină etapa de validare și înmatriculare pentru admiterea la licență?",
+        "question": "Care este perioada pentru validarea și înmatricularea candidaților la licență?",
         "expected_source": "doc2.pdf",
-        "expected_pages": [18],
+        "expected_pages": [18, 33, 40],
         "expected_keywords": [
             "15 iulie",
             "17 iulie",
@@ -115,7 +154,20 @@
         "should_refuse": false
     },
     {
-        "id": "Q10",
+        "id": "Q13",
+        "category": "licenta",
+        "question": "Ce documente de studii sunt necesare la înmatricularea unui candidat care a absolvit deja o instituție de învățământ superior?",
+        "expected_source": "doc2.pdf",
+        "expected_pages": [103, 104],
+        "expected_keywords": [
+            "diplomă",
+            "supliment",
+            "foaia matricolă"
+        ],
+        "should_refuse": false
+    },
+    {
+        "id": "Q14",
         "category": "general",
         "question": "Care este taxa lunară pentru transportul în comun al studenților la Politehnica București?",
         "expected_source": null,
