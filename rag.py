@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 
 
 # ============================================================
-# Configuration
+# CONFIGURATION
 # ============================================================
 
 EMBEDDING_MODEL_NAME = (
@@ -23,14 +23,18 @@ LLM_NAME = "qwen3:1.7b"
 METADATA_PATH = "chunk_metadata.json"
 INDEX_FOLDER = Path("indexes")
 
-SEARCH_RESULTS = 10
+# Search a large candidate pool.
+SEARCH_RESULTS = 50
+
+# Number of chunks ultimately considered by the evidence stage.
 FINAL_RESULTS = 4
 
-MAX_GENERATED_TOKENS = 220
+# Keep answers reasonably short.
+MAX_GENERATED_TOKENS = 180
 
 
 # ============================================================
-# Document categories
+# DOCUMENT CATEGORIES
 # ============================================================
 
 DOCUMENT_CATEGORIES = {
@@ -42,33 +46,45 @@ DOCUMENT_CATEGORIES = {
 
 
 # ============================================================
-# Topic keywords
+# CATEGORY KEYWORDS
 # ============================================================
 
 CATEGORY_KEYWORDS = {
 
     "doctorat": [
         "doctorat",
-        "doctor",
         "doctorand",
         "doctoranzi",
         "studii doctorale",
         "școala doctorală",
+        "scoala doctorala",
         "școlile doctorale",
+        "scolile doctorale",
         "admitere la doctorat",
-        "înscrierea la doctorat",
+        "admiterea la doctorat",
         "înscriere la doctorat",
+        "inscriere la doctorat",
+        "înscrierea la doctorat",
+        "inscrierea la doctorat",
     ],
 
     "licenta": [
         "licență",
         "licenta",
         "studii de licență",
+        "studii de licenta",
         "ciclu de licență",
+        "ciclu de licenta",
         "admitere licență",
+        "admitere licenta",
         "admiterea la licență",
+        "admiterea la licenta",
         "concursul de admitere la licență",
+        "concursul de admitere la licenta",
         "bacalaureat",
+        "validare",
+        "înmatriculare",
+        "inmatriculare",
     ],
 
     "burse": [
@@ -78,10 +94,13 @@ CATEGORY_KEYWORDS = {
         "bursei",
         "burselor",
         "bursă de performanță",
+        "bursa de performanta",
         "bursa de performanță",
+        "bursa de performanta",
         "bursă de merit",
         "bursa de merit",
         "bursă socială",
+        "bursa sociala",
         "ajutor social",
     ],
 
@@ -92,62 +111,61 @@ CATEGORY_KEYWORDS = {
         "studii de masterat",
         "studii de master",
         "ciclu de masterat",
+        "ciclu de master",
         "admitere masterat",
+        "admitere master",
         "admiterea la masterat",
+        "admiterea la master",
         "concursul de admitere la masterat",
+        "concursul de admitere la master",
     ],
 }
 
 
 # ============================================================
-# Useful phrases for evidence selection
+# ROMANIAN STOPWORDS
 # ============================================================
 
-QUESTION_TYPE_KEYWORDS = {
-    "conditions": [
-        "condiții",
-        "conditii",
-        "criterii",
-        "eligibilitate",
-        "cerințe",
-        "cerinte",
-        "necesare",
-    ],
-
-    "documents": [
-        "documente",
-        "dosar",
-        "acte",
-        "ce trebuie depus",
-        "ce document",
-    ],
-
-    "dates": [
-        "când",
-        "cand",
-        "data",
-        "perioada",
-        "începe",
-        "incepe",
-        "se termină",
-        "se termina",
-    ],
-
-    "numbers": [
-        "cât",
-        "cat",
-        "număr",
-        "numar",
-        "punctaj",
-        "medie",
-        "credite",
-        "durata",
-    ],
+STOPWORDS = {
+    "care",
+    "sunt",
+    "este",
+    "pentru",
+    "la",
+    "și",
+    "si",
+    "de",
+    "din",
+    "în",
+    "in",
+    "a",
+    "al",
+    "ale",
+    "un",
+    "o",
+    "unui",
+    "unei",
+    "ce",
+    "cum",
+    "se",
+    "pe",
+    "cu",
+    "prin",
+    "sau",
+    "fi",
+    "mai",
+    "ca",
+    "unor",
+    "unei",
+    "acest",
+    "aceasta",
+    "aceste",
+    "acestea",
 }
 
 
 # ============================================================
-# Load metadata
+# LOAD CHUNKS
 # ============================================================
 
 print("Loading RAG data...")
@@ -159,11 +177,13 @@ with open(
 ) as file:
     chunks = json.load(file)
 
-print(f"Loaded {len(chunks)} total chunks.")
+print(
+    f"Loaded {len(chunks)} total chunks."
+)
 
 
 # ============================================================
-# Load embedding model
+# LOAD EMBEDDING MODEL
 # ============================================================
 
 print(
@@ -178,7 +198,8 @@ embedding_model = SentenceTransformer(
 )
 
 model_load_time = (
-    time.perf_counter() - model_start
+    time.perf_counter()
+    - model_start
 )
 
 print(
@@ -188,7 +209,7 @@ print(
 
 
 # ============================================================
-# Load category indexes
+# LOAD CATEGORY INDEXES
 # ============================================================
 
 category_indexes = {}
@@ -199,11 +220,13 @@ for category in set(
 ):
 
     index_path = (
-        INDEX_FOLDER / f"{category}.index"
+        INDEX_FOLDER /
+        f"{category}.index"
     )
 
     mapping_path = (
-        INDEX_FOLDER / f"{category}_mapping.json"
+        INDEX_FOLDER /
+        f"{category}_mapping.json"
     )
 
     if not index_path.exists():
@@ -219,107 +242,342 @@ for category in set(
         )
 
     category_indexes[category] = (
-        faiss.read_index(str(index_path))
+        faiss.read_index(
+            str(index_path)
+        )
     )
 
     with mapping_path.open(
         "r",
         encoding="utf-8"
     ) as file:
-        category_mappings[category] = json.load(file)
+        category_mappings[category] = (
+            json.load(file)
+        )
 
 
 # ============================================================
-# Text helpers
+# BASIC TEXT FUNCTIONS
 # ============================================================
 
-def normalize_text(text):
-    return re.findall(
+def normalize_words(text):
+    """
+    Convert text into normalized words and remove
+    common Romanian stopwords.
+    """
+
+    words = re.findall(
         r"\b\w+\b",
         text.lower(),
         flags=re.UNICODE
     )
 
-
-def keyword_score(query, text):
-    query_words = set(normalize_text(query))
-    text_words = set(normalize_text(text))
-
-    if not query_words:
-        return 0.0
-
-    return len(
-        query_words.intersection(text_words)
-    ) / len(query_words)
-
-
-def split_sentences(text):
-    parts = re.split(
-        r"(?<=[.!?;])\s+|\n+",
-        text
-    )
-
     return [
-        part.strip()
-        for part in parts
-        if len(part.strip()) >= 25
+        word
+        for word in words
+        if word not in STOPWORDS
     ]
 
 
+def normalize_spaces(text):
+    """
+    Collapse repeated whitespace.
+    """
+
+    return re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+
 # ============================================================
-# Detect topic
+# CATEGORY DETECTION
 # ============================================================
 
 def detect_category(query):
 
     query_lower = query.lower()
 
+    # Prefer more specific phrases first.
+    candidates = []
+
     for category, keywords in (
         CATEGORY_KEYWORDS.items()
     ):
+
         for keyword in keywords:
+
             if keyword in query_lower:
-                return category
 
-    return None
+                candidates.append(
+                    (
+                        len(keyword),
+                        category
+                    )
+                )
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        reverse=True
+    )
+
+    return candidates[0][1]
 
 
 # ============================================================
-# Detect question type
+# QUESTION INTENT
 # ============================================================
 
-def detect_question_types(query):
+def detect_question_intent(query):
 
-    query_lower = query.lower()
+    q = query.lower()
 
-    detected = []
+    # --------------------------------------------------------
+    # Credits
+    # --------------------------------------------------------
 
-    for question_type, keywords in (
-        QUESTION_TYPE_KEYWORDS.items()
+    if (
+        "credite" in q
+        or "ects" in q
     ):
-        for keyword in keywords:
-            if keyword in query_lower:
-                detected.append(question_type)
-                break
+        return "credits"
 
-    return detected
+
+    # --------------------------------------------------------
+    # Points
+    # --------------------------------------------------------
+
+    if (
+        "punctaj minim" in q
+        or "punctajul minim" in q
+        or "număr de puncte" in q
+        or "numar de puncte" in q
+        or "puncte minim" in q
+    ):
+        return "points"
+
+
+    # --------------------------------------------------------
+    # Duration
+    # --------------------------------------------------------
+
+    if (
+        "durata studiilor" in q
+        or "durata studiilor universitare" in q
+        or "cât durează studiile" in q
+        or "cat dureaza studiile" in q
+        or "cât durează" in q
+        or "cat dureaza" in q
+    ):
+        return "duration"
+
+
+    # --------------------------------------------------------
+    # Dates
+    # --------------------------------------------------------
+
+    if (
+        "când începe" in q
+        or "cand incepe" in q
+        or "când se termină" in q
+        or "cand se termina" in q
+        or "care este perioada" in q
+        or "ce perioadă" in q
+        or "ce perioada" in q
+        or "data de început" in q
+        or "data de inceput" in q
+    ):
+        return "dates"
+
+
+    # --------------------------------------------------------
+    # Documents
+    # --------------------------------------------------------
+
+    if (
+        "ce documente" in q
+        or "ce document" in q
+        or "ce acte" in q
+        or "ce acte trebuie" in q
+        or "ce trebuie depus" in q
+        or "ce se depune" in q
+    ):
+        return "documents"
+
+
+    # --------------------------------------------------------
+    # Scholarship activities
+    # --------------------------------------------------------
+
+    if (
+        "ce activități contribuie" in q
+        or "ce activitati contribuie" in q
+        or "activități contribuie" in q
+        or "activitati contribuie" in q
+    ):
+        return "scholarship_activities"
+
+
+    # --------------------------------------------------------
+    # General conditions
+    # --------------------------------------------------------
+
+    if (
+        "condiții" in q
+        or "conditii" in q
+        or "criterii" in q
+        or "eligibilitate" in q
+        or "cerințe" in q
+        or "cerinte" in q
+    ):
+        return "conditions"
+
+
+    return "general"
 
 
 # ============================================================
-# Semantic search
+# LEXICAL SCORE
 # ============================================================
 
-def semantic_search(
+def lexical_score(
     query,
-    category
+    text
 ):
 
-    index = category_indexes[category]
-    mapping = category_mappings[category]
+    query_words = set(
+        normalize_words(query)
+    )
 
-    query_embedding = embedding_model.encode(
-        [query],
-        normalize_embeddings=True
+    text_words = set(
+        normalize_words(text)
+    )
+
+    if not query_words:
+        return 0.0
+
+    overlap = (
+        query_words
+        &
+        text_words
+    )
+
+    return (
+        len(overlap)
+        /
+        len(query_words)
+    )
+
+
+# ============================================================
+# PHRASE SCORE
+# ============================================================
+
+def phrase_score(
+    query,
+    text
+):
+
+    q = query.lower()
+    t = text.lower()
+
+    phrases = [
+        "bursa de performanță",
+        "bursa de performanta",
+        "punctaj minim",
+        "credite transferabile",
+        "300 de credite",
+        "număr minim de credite",
+        "numar minim de credite",
+        "înmatriculare",
+        "inmatriculare",
+        "validare",
+        "bacalaureat",
+        "criterii de departajare",
+        "durata studiilor",
+        "studii universitare de doctorat",
+        "studii universitare de masterat",
+        "studii universitare de licență",
+        "studii universitare de licenta",
+    ]
+
+    score = 0.0
+
+    for phrase in phrases:
+
+        if (
+            phrase in q
+            and
+            phrase in t
+        ):
+            score += 1.0
+
+    return min(
+        score,
+        1.0
+    )
+
+
+# ============================================================
+# RETRIEVAL
+# ============================================================
+
+def retrieve(query):
+
+    retrieval_start = (
+        time.perf_counter()
+    )
+
+    category = detect_category(
+        query
+    )
+
+
+    # --------------------------------------------------------
+    # Choose index
+    # --------------------------------------------------------
+
+    if category is None:
+
+        global_index_path = (
+            "faiss_index.bin"
+        )
+
+        index = faiss.read_index(
+            global_index_path
+        )
+
+        mapping = list(
+            range(len(chunks))
+        )
+
+    else:
+
+        index = category_indexes[
+            category
+        ]
+
+        mapping = category_mappings[
+            category
+        ]
+
+
+    # --------------------------------------------------------
+    # Query embedding
+    # --------------------------------------------------------
+
+    embedding_start = (
+        time.perf_counter()
+    )
+
+    query_embedding = (
+        embedding_model.encode(
+            [query],
+            normalize_embeddings=True
+        )
     )
 
     query_embedding = np.asarray(
@@ -327,25 +585,59 @@ def semantic_search(
         dtype="float32"
     )
 
+    embedding_time = (
+        time.perf_counter()
+        -
+        embedding_start
+    )
+
+
+    # --------------------------------------------------------
+    # FAISS
+    # --------------------------------------------------------
+
+    search_start = (
+        time.perf_counter()
+    )
+
     search_k = min(
         SEARCH_RESULTS,
         index.ntotal
     )
 
-    scores, indices = index.search(
-        query_embedding,
-        search_k
+    semantic_scores, indices = (
+        index.search(
+            query_embedding,
+            search_k
+        )
     )
 
-    results = []
+    search_time = (
+        time.perf_counter()
+        -
+        search_start
+    )
 
-    for score, local_index in zip(
-        scores[0],
+
+    # --------------------------------------------------------
+    # Reranking
+    # --------------------------------------------------------
+
+    rerank_start = (
+        time.perf_counter()
+    )
+
+    candidates = []
+
+
+    for semantic, local_index in zip(
+        semantic_scores[0],
         indices[0]
     ):
 
         if local_index < 0:
             continue
+
 
         original_index = mapping[
             local_index
@@ -355,271 +647,50 @@ def semantic_search(
             original_index
         ]
 
-        results.append({
-            "chunk_index": original_index,
-            "source": chunk["source"],
-            "page": chunk["page"],
-            "text": chunk["text"],
-            "semantic_score": float(score),
-        })
 
-    return results
-
-
-# ============================================================
-# Retrieve chunks
-# ============================================================
-
-def retrieve(query):
-
-    retrieval_start = time.perf_counter()
-
-    category = detect_category(query)
-
-    # --------------------------------------------------------
-    # Unknown-topic fallback
-    # --------------------------------------------------------
-
-    if category is None:
-
-        global_index = faiss.read_index(
-            "faiss_index.bin"
-        )
-
-        embedding_start = time.perf_counter()
-
-        query_embedding = embedding_model.encode(
-            [query],
-            normalize_embeddings=True
-        )
-
-        query_embedding = np.asarray(
-            query_embedding,
-            dtype="float32"
-        )
-
-        embedding_time = (
-            time.perf_counter()
-            - embedding_start
-        )
-
-        search_start = time.perf_counter()
-
-        search_k = min(
-            SEARCH_RESULTS,
-            global_index.ntotal
-        )
-
-        scores, indices = global_index.search(
-            query_embedding,
-            search_k
-        )
-
-        search_time = (
-            time.perf_counter()
-            - search_start
-        )
-
-        candidates = []
-
-        for score, index_number in zip(
-            scores[0],
-            indices[0]
-        ):
-
-            if index_number < 0:
-                continue
-
-            chunk = chunks[
-                index_number
-            ]
-
-            candidates.append({
-                "chunk_index": index_number,
-                "source": chunk["source"],
-                "page": chunk["page"],
-                "text": chunk["text"],
-                "semantic_score": float(score),
-                "keyword_score": keyword_score(
-                    query,
-                    chunk["text"]
-                ),
-            })
-
-        candidates.sort(
-            key=lambda x:
-            (
-                0.85 * x["semantic_score"]
-                +
-                0.15 * x["keyword_score"]
-            ),
-            reverse=True
-        )
-
-        selected = []
-
-        seen_pages = set()
-
-        for candidate in candidates:
-
-            page_key = (
-                candidate["source"],
-                candidate["page"]
-            )
-
-            if page_key in seen_pages:
-                continue
-
-            seen_pages.add(page_key)
-
-            candidate["combined_score"] = (
-                0.85 * candidate["semantic_score"]
-                +
-                0.15 * candidate["keyword_score"]
-            )
-
-            selected.append(candidate)
-
-            if len(selected) >= FINAL_RESULTS:
-                break
-
-        total_time = (
-            time.perf_counter()
-            - retrieval_start
-        )
-
-        return (
-            selected,
-            category,
-            {
-                "embedding": embedding_time,
-                "search": search_time,
-                "reranking": 0.0,
-                "total_retrieval": total_time,
-            }
-        )
-
-
-    # --------------------------------------------------------
-    # Category-specific multi-query retrieval
-    # --------------------------------------------------------
-
-    search_queries = [query]
-
-    if category in CATEGORY_KEYWORDS:
-
-        if category == "burse":
-            search_queries.append(
-                "criterii bursa de performanță"
-            )
-
-        elif category == "doctorat":
-            search_queries.append(
-                "condiții înscriere doctorat"
-            )
-
-        elif category == "masterat":
-            search_queries.append(
-                "condiții admitere masterat"
-            )
-
-        elif category == "licenta":
-            search_queries.append(
-                "condiții admitere licență"
-            )
-
-
-    embedding_start = time.perf_counter()
-
-    results_by_chunk = {}
-
-
-    for search_query in search_queries:
-
-        results = semantic_search(
-            search_query,
-            category
-        )
-
-        for result in results:
-
-            index_number = (
-                result["chunk_index"]
-            )
-
-            if index_number not in results_by_chunk:
-
-                results_by_chunk[index_number] = {
-                    "chunk_index": index_number,
-                    "source": result["source"],
-                    "page": result["page"],
-                    "text": result["text"],
-                    "semantic_scores": [],
-                }
-
-            results_by_chunk[
-                index_number
-            ]["semantic_scores"].append(
-                result["semantic_score"]
-            )
-
-
-    embedding_time = (
-        time.perf_counter()
-        - embedding_start
-    )
-
-
-    # --------------------------------------------------------
-    # Reranking
-    # --------------------------------------------------------
-
-    rerank_start = time.perf_counter()
-
-    candidates = []
-
-    question_types = detect_question_types(
-        query
-    )
-
-
-    for candidate in (
-        results_by_chunk.values()
-    ):
-
-        best_semantic = max(
-            candidate["semantic_scores"]
-        )
-
-        lexical = keyword_score(
+        lexical = lexical_score(
             query,
-            candidate["text"]
+            chunk["text"]
         )
+
+
+        phrase = phrase_score(
+            query,
+            chunk["text"]
+        )
+
 
         combined = (
-            0.80 * best_semantic
+            0.70 * float(semantic)
             +
             0.20 * lexical
+            +
+            0.10 * phrase
         )
 
+
         candidates.append({
+
             "chunk_index":
-                candidate["chunk_index"],
+                original_index,
 
             "source":
-                candidate["source"],
+                chunk["source"],
 
             "page":
-                candidate["page"],
+                chunk["page"],
 
             "text":
-                candidate["text"],
+                chunk["text"],
 
             "semantic_score":
-                best_semantic,
+                float(semantic),
 
             "keyword_score":
                 lexical,
+
+            "phrase_score":
+                phrase,
 
             "combined_score":
                 combined,
@@ -627,25 +698,20 @@ def retrieve(query):
 
 
     candidates.sort(
-        key=lambda x:
-        x["combined_score"],
+        key=lambda item:
+        item["combined_score"],
         reverse=True
     )
 
 
-    reranking_time = (
-        time.perf_counter()
-        - rerank_start
-    )
-
-
     # --------------------------------------------------------
-    # Select unique pages
+    # Unique pages
     # --------------------------------------------------------
 
     selected = []
 
     seen_pages = set()
+
 
     for candidate in candidates:
 
@@ -654,20 +720,35 @@ def retrieve(query):
             candidate["page"]
         )
 
+
         if page_key in seen_pages:
             continue
 
-        seen_pages.add(page_key)
 
-        selected.append(candidate)
+        seen_pages.add(
+            page_key
+        )
+
+        selected.append(
+            candidate
+        )
+
 
         if len(selected) >= FINAL_RESULTS:
             break
 
 
-    total_time = (
+    reranking_time = (
         time.perf_counter()
-        - retrieval_start
+        -
+        rerank_start
+    )
+
+
+    total_retrieval = (
+        time.perf_counter()
+        -
+        retrieval_start
     )
 
 
@@ -675,145 +756,512 @@ def retrieve(query):
         selected,
         category,
         {
-            "embedding": embedding_time,
-            "search": 0.0,
-            "reranking": reranking_time,
-            "total_retrieval": total_time,
+            "embedding":
+                embedding_time,
+
+            "faiss_search":
+                search_time,
+
+            "reranking":
+                reranking_time,
+
+            "total_retrieval":
+                total_retrieval,
         }
     )
 
 
 # ============================================================
-# Evidence selection
+# TARGETED FACT EXTRACTION
 # ============================================================
 
-def select_evidence(
+def extract_fact_evidence(
     query,
     retrieved_chunks
 ):
+    """
+    Extract evidence specifically for exact factual
+    questions.
 
-    evidence_start = time.perf_counter()
+    Returns ONLY a list.
+    This avoids the tuple/list mistake from the previous version.
+    """
 
-    question_words = set(
-        normalize_text(query)
-    )
-
-    question_types = detect_question_types(
+    intent = detect_question_intent(
         query
     )
 
     evidence = []
 
-    for chunk in retrieved_chunks:
 
-        sentences = split_sentences(
-            chunk["text"]
-        )
+    # --------------------------------------------------------
+    # CREDIT QUESTIONS
+    # --------------------------------------------------------
 
-        for sentence in sentences:
+    if intent == "credits":
 
-            sentence_words = set(
-                normalize_text(sentence)
+        patterns = [
+            r"cel puțin.{0,150}credite",
+            r"cel putin.{0,150}credite",
+            r"credite transferabile.{0,120}",
+            r"\b300\b.{0,120}credite",
+            r"credite.{0,120}\b300\b",
+        ]
+
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
             )
 
-            overlap = len(
-                question_words.intersection(
-                    sentence_words
+            lower = text.lower()
+
+
+            for pattern in patterns:
+
+                match = re.search(
+                    pattern,
+                    lower
                 )
+
+
+                if match:
+
+                    left = max(
+                        0,
+                        match.start() - 180
+                    )
+
+                    right = min(
+                        len(text),
+                        match.end() + 250
+                    )
+
+
+                    passage = (
+                        text[left:right]
+                        .strip()
+                    )
+
+
+                    evidence.append({
+
+                        "text":
+                            passage,
+
+                        "source":
+                            chunk["source"],
+
+                        "page":
+                            chunk["page"],
+
+                        "score":
+                            100.0,
+                    })
+
+
+                    break
+
+
+    # --------------------------------------------------------
+    # DURATION QUESTIONS
+    # --------------------------------------------------------
+
+    elif intent == "duration":
+
+        patterns = [
+            r"studiile universitare de doctorat.{0,180}4 ani",
+            r"doctorat.{0,150}4 ani",
+            r"durata.{0,100}4 ani",
+        ]
+
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
             )
 
-            score = (
-                0.65
-                * chunk["semantic_score"]
-                +
-                0.35
-                * (
-                    overlap
-                    /
-                    max(len(question_words), 1)
+            lower = text.lower()
+
+
+            for pattern in patterns:
+
+                match = re.search(
+                    pattern,
+                    lower
                 )
+
+
+                if match:
+
+                    left = max(
+                        0,
+                        match.start() - 150
+                    )
+
+                    right = min(
+                        len(text),
+                        match.end() + 180
+                    )
+
+
+                    evidence.append({
+
+                        "text":
+                            text[left:right],
+
+                        "source":
+                            chunk["source"],
+
+                        "page":
+                            chunk["page"],
+
+                        "score":
+                            100.0,
+                    })
+
+
+                    break
+
+
+    # --------------------------------------------------------
+    # DATE QUESTIONS
+    # --------------------------------------------------------
+
+    elif intent == "dates":
+
+        patterns = [
+            r"15 iulie.{0,300}17 iulie",
+            r"începe.{0,300}15 iulie",
+            r"incepe.{0,300}15 iulie",
+            r"se încheie.{0,300}17 iulie",
+            r"se incheie.{0,300}17 iulie",
+        ]
+
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
             )
 
-            # Give a small boost to sentences containing
-            # explicit requirement/number language for
-            # questions asking for conditions or values.
-            sentence_lower = (
-                sentence.lower()
+            lower = text.lower()
+
+
+            for pattern in patterns:
+
+                match = re.search(
+                    pattern,
+                    lower
+                )
+
+
+                if match:
+
+                    left = max(
+                        0,
+                        match.start() - 180
+                    )
+
+                    right = min(
+                        len(text),
+                        match.end() + 300
+                    )
+
+
+                    evidence.append({
+
+                        "text":
+                            text[left:right],
+
+                        "source":
+                            chunk["source"],
+
+                        "page":
+                            chunk["page"],
+
+                        "score":
+                            100.0,
+                    })
+
+
+                    break
+
+
+    # --------------------------------------------------------
+    # DOCUMENT QUESTIONS
+    # --------------------------------------------------------
+
+    elif intent == "documents":
+
+        patterns = [
+            r"cerere de înscriere.{0,500}",
+            r"cerere de inscriere.{0,500}",
+            r"curriculum vitae.{0,400}",
+            r"lista de lucrări.{0,400}",
+            r"lista de lucrari.{0,400}",
+            r"diplome de absolvire.{0,400}",
+        ]
+
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
             )
 
-            if (
-                "conditions" in question_types
-                or
-                "numbers" in question_types
-            ):
-
-                if any(
-                    marker in sentence_lower
-                    for marker in [
-                        "minimum",
-                        "minim",
-                        "cel puțin",
-                        "cel putin",
-                        "maximum",
-                        "maxim",
-                        "9,70",
-                        "30 de puncte",
-                        "300",
-                        "credite",
-                        "ani",
-                    ]
-                ):
-                    score += 0.10
+            lower = text.lower()
 
 
-            evidence.append({
-                "text": sentence,
-                "source": chunk["source"],
-                "page": chunk["page"],
-                "score": score,
-            })
+            for pattern in patterns:
 
+                match = re.search(
+                    pattern,
+                    lower
+                )
+
+
+                if match:
+
+                    left = max(
+                        0,
+                        match.start() - 150
+                    )
+
+                    right = min(
+                        len(text),
+                        match.end() + 450
+                    )
+
+
+                    evidence.append({
+
+                        "text":
+                            text[left:right],
+
+                        "source":
+                            chunk["source"],
+
+                        "page":
+                            chunk["page"],
+
+                        "score":
+                            100.0,
+                    })
+
+
+                    # Do not stop at the first chunk.
+                    # Document questions may need multiple
+                    # pieces of the list.
+
+                    break
+
+
+    # --------------------------------------------------------
+    # POINT QUESTIONS
+    # --------------------------------------------------------
+
+    elif intent == "points":
+
+        patterns = [
+            r"punctajul minim.{0,150}30",
+            r"punctaj minim.{0,150}30",
+            r"30 de puncte",
+        ]
+
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
+            )
+
+            lower = text.lower()
+
+
+            for pattern in patterns:
+
+                match = re.search(
+                    pattern,
+                    lower
+                )
+
+
+                if match:
+
+                    left = max(
+                        0,
+                        match.start() - 150
+                    )
+
+                    right = min(
+                        len(text),
+                        match.end() + 200
+                    )
+
+
+                    evidence.append({
+
+                        "text":
+                            text[left:right],
+
+                        "source":
+                            chunk["source"],
+
+                        "page":
+                            chunk["page"],
+
+                        "score":
+                            100.0,
+                    })
+
+
+                    break
+
+
+    # --------------------------------------------------------
+    # SCHOLARSHIP ACTIVITIES
+    # --------------------------------------------------------
+
+    elif intent == "scholarship_activities":
+
+        for chunk in retrieved_chunks:
+
+            text = normalize_spaces(
+                chunk["text"]
+            )
+
+            lower = text.lower()
+
+
+            activity_terms = [
+                "concursuri profesionale",
+                "lucrări și articole",
+                "lucrari si articole",
+                "contracte de cercetare",
+                "invenții și inovații",
+                "inventii si inovatii",
+                "sesiuni de comunicări",
+                "sesiuni de comunicari",
+                "alte activități deosebite",
+                "alte activitati deosebite",
+            ]
+
+
+            hits = sum(
+                term in lower
+                for term in activity_terms
+            )
+
+
+            if hits > 0:
+
+                evidence.append({
+
+                    "text":
+                        text,
+
+                    "source":
+                        chunk["source"],
+
+                    "page":
+                        chunk["page"],
+
+                    "score":
+                        float(hits),
+                })
+
+
+    # --------------------------------------------------------
+    # Sort + deduplicate
+    # --------------------------------------------------------
 
     evidence.sort(
-        key=lambda x: x["score"],
+        key=lambda item:
+        item["score"],
         reverse=True
     )
 
 
     selected = []
 
-    seen_text = set()
+    seen = set()
 
 
     for item in evidence:
 
-        normalized = re.sub(
-            r"\s+",
-            " ",
-            item["text"].lower()
+        normalized = normalize_spaces(
+            item["text"]
+        ).lower()
+
+
+        key = (
+            item["source"],
+            item["page"],
+            normalized[:250]
         )
 
-        if normalized in seen_text:
+
+        if key in seen:
             continue
 
-        seen_text.add(normalized)
 
-        selected.append(item)
+        seen.add(key)
 
-        if len(selected) >= 8:
+
+        selected.append(
+            item
+        )
+
+
+        # Keep prompt compact.
+        if len(selected) >= 5:
             break
 
 
-    evidence_time = (
-        time.perf_counter()
-        - evidence_start
-    )
-
-    return selected, evidence_time
+    return selected
 
 
 # ============================================================
-# Build LLM prompt
+# FALLBACK EVIDENCE
+# ============================================================
+
+def fallback_evidence(
+    retrieved_chunks
+):
+    """
+    If deterministic extraction finds nothing,
+    send the complete top chunks.
+    """
+
+    evidence = []
+
+
+    for chunk in retrieved_chunks:
+
+        evidence.append({
+
+            "text":
+                chunk["text"],
+
+            "source":
+                chunk["source"],
+
+            "page":
+                chunk["page"],
+
+            "score":
+                chunk["combined_score"],
+        })
+
+
+    return evidence
+
+
+# ============================================================
+# BUILD PROMPT
 # ============================================================
 
 def build_prompt(
@@ -822,6 +1270,7 @@ def build_prompt(
 ):
 
     context_parts = []
+
 
     for i, item in enumerate(
         evidence,
@@ -838,41 +1287,102 @@ Pagina: {item['page']}
 """
         )
 
+
     context = "\n".join(
         context_parts
     )
 
+
+    intent = detect_question_intent(
+        query
+    )
+
+
+    extra_instruction = ""
+
+
+    if intent == "credits":
+
+        extra_instruction = """
+IMPORTANT:
+Întrebarea este despre CREDITE.
+Nu folosi durata în ani ca răspuns.
+Caută explicit numărul asociat cu "credite"
+sau "ECTS".
+"""
+
+
+    elif intent == "duration":
+
+        extra_instruction = """
+IMPORTANT:
+Întrebarea este despre DURATA studiilor.
+Nu răspunde cu numărul de credite.
+Caută explicit durata exprimată în ani.
+"""
+
+
+    elif intent == "dates":
+
+        extra_instruction = """
+IMPORTANT:
+Întrebarea este despre O PERIOADĂ.
+Răspunsul trebuie să includă data de început
+și data de sfârșit dacă acestea apar.
+"""
+
+
+    elif intent == "documents":
+
+        extra_instruction = """
+IMPORTANT:
+Întrebarea este despre DOCUMENTE.
+Enumeră documentele efectiv cerute.
+"""
+
+
     return f"""
 /no_think
 
-Răspunde la întrebarea de mai jos folosind
-EXCLUSIV dovezile furnizate.
+Ești un asistent pentru documentele oficiale
+ale Universității Naționale de Știință și Tehnologie
+POLITEHNICA București.
 
-Întrebare:
+ÎNTREBARE:
 {query}
 
-Reguli:
-- Răspunde numai în limba română.
-- Răspunde direct și clar.
-- Include toate informațiile relevante din dovezi.
-- Pentru întrebări despre condiții sau cifre,
-  include valorile exacte.
+Răspunde EXCLUSIV folosind DOVEZILE.
+
+REGULI:
+- Răspunde în limba română.
+- Răspunde exact la întrebarea pusă.
+- Nu răspunde la o altă întrebare apropiată.
 - Nu inventa informații.
-- Nu adăuga informații generale.
-- Nu inventa surse.
-- Nu genera o secțiune de surse.
-- Dacă informația nu apare în dovezi, spune:
+- Nu folosi informații din afara dovezilor.
+- Verifică atent valorile numerice.
+- Nu confunda două valori numerice diferite.
+- Nu confunda articole sau reguli diferite.
+- Nu menționa DOVADĂ 1, DOVADĂ 2 etc.
+- Nu genera surse.
+- Nu spune că o informație există dacă nu este prezentă.
+
+{extra_instruction}
+
+Dacă informația necesară nu apare în dovezi,
+scrie exact:
+
 "Nu am găsit această informație în documentele disponibile."
 
-Dovezi:
+DOVEZI:
+
 {context}
 
-Răspuns:
+RĂSPUNS:
 """
 
 
 # ============================================================
-# Generate answer
+# GENERATE ANSWER
 # ============================================================
 
 def generate_answer(
@@ -880,40 +1390,46 @@ def generate_answer(
     evidence
 ):
 
-    start = time.perf_counter()
-
     prompt = build_prompt(
         query,
         evidence
     )
 
+
+    start = time.perf_counter()
+
+
     response = chat(
         model=LLM_NAME,
         messages=[
             {
-                "role": "user",
-                "content": prompt
+                "role":
+                    "user",
+
+                "content":
+                    prompt
             }
         ],
         think=False,
         options={
-            "temperature": 0.1,
-            "num_predict": MAX_GENERATED_TOKENS,
+            "temperature":
+                0.0,
+
+            "num_predict":
+                MAX_GENERATED_TOKENS,
         }
     )
 
+
     elapsed = (
         time.perf_counter()
-        - start
+        -
+        start
     )
 
-    answer = (
-        response.message.content
-        .strip()
-    )
 
     return (
-        answer,
+        response.message.content.strip(),
         elapsed,
         getattr(
             response,
@@ -924,59 +1440,40 @@ def generate_answer(
             response,
             "eval_count",
             None
-        ),
+        )
     )
 
 
 # ============================================================
-# Build source list
-# ============================================================
-
-def build_sources(
-    retrieved_chunks
-):
-
-    sources = []
-
-    seen = set()
-
-    for chunk in retrieved_chunks:
-
-        key = (
-            chunk["source"],
-            chunk["page"]
-        )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        sources.append(
-            f"- {chunk['source']}, "
-            f"pagina {chunk['page']}"
-        )
-
-    return sources
-
-
-# ============================================================
-# Interactive application
+# MAIN LOOP
 # ============================================================
 
 print()
 print("=" * 70)
 print("ROMANIAN RAG ASSISTANT")
 print("=" * 70)
-print(f"LLM: {LLM_NAME}")
+
 print(
-    f"Retrieved chunks: {FINAL_RESULTS}"
+    f"LLM: {LLM_NAME}"
 )
+
+print(
+    f"FAISS candidates: {SEARCH_RESULTS}"
+)
+
+print(
+    f"Chunks retrieved: {FINAL_RESULTS}"
+)
+
 print(
     f"Maximum generated tokens: "
     f"{MAX_GENERATED_TOKENS}"
 )
-print("Type 'exit' to stop.")
+
+print(
+    "Type 'exit' to stop."
+)
+
 print()
 
 
@@ -988,7 +1485,10 @@ while True:
             "Întrebare: "
         ).strip()
 
-    except (KeyboardInterrupt, EOFError):
+    except (
+        KeyboardInterrupt,
+        EOFError
+    ):
 
         print("\nExiting...")
         break
@@ -1016,18 +1516,44 @@ while True:
 
 
     # --------------------------------------------------------
-    # Evidence selection
+    # Fact evidence
     # --------------------------------------------------------
 
-    evidence, evidence_time = (
-        select_evidence(
-            query,
-            retrieved_chunks
-        )
+    evidence_start = (
+        time.perf_counter()
     )
 
 
+    evidence = extract_fact_evidence(
+        query,
+        retrieved_chunks
+    )
+
+
+    # --------------------------------------------------------
+    # Fallback if fact extraction found nothing
+    # --------------------------------------------------------
+
+    if not evidence:
+
+        evidence = fallback_evidence(
+            retrieved_chunks
+        )
+
+
+    evidence_time = (
+        time.perf_counter()
+        -
+        evidence_start
+    )
+
+
+    # --------------------------------------------------------
+    # Display
+    # --------------------------------------------------------
+
     print()
+
 
     if category:
 
@@ -1042,8 +1568,32 @@ while True:
         )
 
 
+    print(
+        f"Intenție detectată: "
+        f"{detect_question_intent(query)}"
+    )
+
+
     print()
-    print("Dovezi selectate:")
+    print("Fragmente recuperate:")
+
+
+    for i, chunk in enumerate(
+        retrieved_chunks,
+        start=1
+    ):
+
+        print(
+            f"{i}. "
+            f"{chunk['source']}, "
+            f"pagina {chunk['page']} "
+            f"(scor "
+            f"{chunk['combined_score']:.4f})"
+        )
+
+
+    print()
+    print("Dovezi focalizate:")
 
 
     for i, item in enumerate(
@@ -1051,18 +1601,36 @@ while True:
         start=1
     ):
 
+        preview = normalize_spaces(
+            item["text"]
+        )
+
+
+        if len(preview) > 220:
+
+            preview = (
+                preview[:220]
+                + "..."
+            )
+
+
         print(
             f"{i}. "
             f"{item['source']}, "
-            f"pagina {item['page']} "
-            f"(scor "
-            f"{item['score']:.4f})"
+            f"pagina {item['page']} | "
+            f"{preview}"
         )
 
 
     print()
-    print("Se generează răspunsul...")
+    print(
+        "Se generează răspunsul..."
+    )
 
+
+    # --------------------------------------------------------
+    # LLM
+    # --------------------------------------------------------
 
     try:
 
@@ -1077,88 +1645,6 @@ while True:
         )
 
 
-        sources = build_sources(
-            retrieved_chunks
-        )
-
-
-        print()
-        print("=" * 70)
-        print("RĂSPUNS")
-        print("=" * 70)
-
-        print(answer)
-
-
-        print()
-        print("Surse:")
-
-        for source in sources:
-
-            print(source)
-
-
-        total_time = (
-            retrieval_timing[
-                "total_retrieval"
-            ]
-            +
-            evidence_time
-            +
-            llm_time
-        )
-
-
-        print()
-        print("=" * 70)
-        print("TIMING")
-        print("=" * 70)
-
-        print(
-            f"Embedding/search: "
-            f"{retrieval_timing['embedding']:.3f} s"
-        )
-
-        print(
-            f"Reranking:        "
-            f"{retrieval_timing['reranking']:.3f} s"
-        )
-
-        print(
-            f"Evidence select:  "
-            f"{evidence_time:.3f} s"
-        )
-
-        print(
-            f"Total retrieval:  "
-            f"{retrieval_timing['total_retrieval']:.3f} s"
-        )
-
-        print(
-            f"LLM generation:   "
-            f"{llm_time:.3f} s"
-        )
-
-        print(
-            f"TOTAL:            "
-            f"{total_time:.3f} s"
-        )
-
-        if prompt_tokens is not None:
-
-            print(
-                f"Prompt tokens:    "
-                f"{prompt_tokens}"
-            )
-
-        if generated_tokens is not None:
-
-            print(
-                f"Generated tokens: "
-                f"{generated_tokens}"
-            )
-
-
     except Exception as error:
 
         print()
@@ -1167,6 +1653,127 @@ while True:
         print("=" * 70)
 
         print(error)
+        print()
+
+        continue
+
+
+    # --------------------------------------------------------
+    # Answer
+    # --------------------------------------------------------
+
+    print()
+    print("=" * 70)
+    print("RĂSPUNS")
+    print("=" * 70)
+
+    print(answer)
+
+
+    # --------------------------------------------------------
+    # Sources
+    # --------------------------------------------------------
+
+    print()
+    print("Surse:")
+
+
+    seen_sources = set()
+
+
+    for chunk in retrieved_chunks:
+
+        key = (
+            chunk["source"],
+            chunk["page"]
+        )
+
+
+        if key in seen_sources:
+            continue
+
+
+        seen_sources.add(
+            key
+        )
+
+
+        print(
+            f"- {chunk['source']}, "
+            f"pagina {chunk['page']}"
+        )
+
+
+    # --------------------------------------------------------
+    # Timing
+    # --------------------------------------------------------
+
+    total_time = (
+        retrieval_timing[
+            "total_retrieval"
+        ]
+        +
+        evidence_time
+        +
+        llm_time
+    )
+
+
+    print()
+    print("=" * 70)
+    print("TIMING")
+    print("=" * 70)
+
+    print(
+        f"Embedding:        "
+        f"{retrieval_timing['embedding']:.3f} s"
+    )
+
+    print(
+        f"FAISS search:     "
+        f"{retrieval_timing['faiss_search']:.3f} s"
+    )
+
+    print(
+        f"Reranking:        "
+        f"{retrieval_timing['reranking']:.3f} s"
+    )
+
+    print(
+        f"Evidence select:  "
+        f"{evidence_time:.3f} s"
+    )
+
+    print(
+        f"Total retrieval:  "
+        f"{retrieval_timing['total_retrieval']:.3f} s"
+    )
+
+    print(
+        f"LLM generation:   "
+        f"{llm_time:.3f} s"
+    )
+
+    print(
+        f"TOTAL:            "
+        f"{total_time:.3f} s"
+    )
+
+
+    if prompt_tokens is not None:
+
+        print(
+            f"Prompt tokens:    "
+            f"{prompt_tokens}"
+        )
+
+
+    if generated_tokens is not None:
+
+        print(
+            f"Generated tokens: "
+            f"{generated_tokens}"
+        )
 
 
     print()

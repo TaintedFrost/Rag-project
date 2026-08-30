@@ -26,15 +26,16 @@ METADATA_PATH = "chunk_metadata.json"
 
 INDEX_FOLDER = Path("indexes")
 
-SEARCH_RESULTS = 10
+SEARCH_RESULTS = 50
 FINAL_RESULTS = 4
+
 MAX_GENERATED_TOKENS = 220
 
 RESULTS_PATH = "evaluation_results.json"
 
 
 # ============================================================
-# Categories
+# Document categories
 # ============================================================
 
 CATEGORY_DOCUMENTS = {
@@ -46,22 +47,263 @@ CATEGORY_DOCUMENTS = {
 
 
 # ============================================================
-# Load files
+# Romanian stopwords
 # ============================================================
+
+STOPWORDS = {
+    "care",
+    "sunt",
+    "este",
+    "pentru",
+    "la",
+    "și",
+    "si",
+    "de",
+    "din",
+    "în",
+    "in",
+    "a",
+    "al",
+    "ale",
+    "un",
+    "o",
+    "unui",
+    "unei",
+    "ce",
+    "cum",
+    "se",
+    "pe",
+    "cu",
+    "prin",
+    "sau",
+    "fi",
+    "mai",
+    "ca",
+}
+
+
+# ============================================================
+# Question type detection
+# ============================================================
+
+def detect_question_types(query):
+    """
+    Determine what kind of information the question asks for.
+    This is used to make evidence selection more focused.
+    """
+
+    q = query.lower()
+
+    types = []
+
+    # --------------------------------------------------------
+    # Number / quantitative questions
+    # --------------------------------------------------------
+
+    if any(
+        word in q
+        for word in [
+            "cât",
+            "cat",
+            "număr",
+            "numar",
+            "punctaj",
+            "credite",
+            "durată",
+            "durata",
+            "minim",
+            "minimum",
+            "maxim",
+            "maximum",
+            "câte",
+            "cate",
+        ]
+    ):
+        types.append("number")
+
+
+    # --------------------------------------------------------
+    # Date / period questions
+    # --------------------------------------------------------
+
+    if any(
+        word in q
+        for word in [
+            "când",
+            "cand",
+            "data",
+            "perioada",
+            "începe",
+            "incepe",
+            "început",
+            "termină",
+            "termina",
+            "sfârșit",
+            "sfarsit",
+        ]
+    ):
+        types.append("date")
+
+
+    # --------------------------------------------------------
+    # Condition questions
+    # --------------------------------------------------------
+
+    if any(
+        word in q
+        for word in [
+            "condiții",
+            "conditii",
+            "criterii",
+            "eligibilitate",
+            "cerințe",
+            "cerinte",
+            "necesare",
+            "necesar",
+        ]
+    ):
+        types.append("conditions")
+
+
+    # --------------------------------------------------------
+    # Document questions
+    # --------------------------------------------------------
+
+    if any(
+        word in q
+        for word in [
+            "documente",
+            "document",
+            "dosar",
+            "acte",
+            "ce trebuie depus",
+            "ce se depune",
+        ]
+    ):
+        types.append("documents")
+
+
+    return types
+
+
+# ============================================================
+# Text helpers
+# ============================================================
+
+def normalize_words(text):
+    """
+    Tokenize text and remove common Romanian stopwords.
+    """
+
+    words = re.findall(
+        r"\b\w+\b",
+        text.lower(),
+        flags=re.UNICODE
+    )
+
+    return [
+        word
+        for word in words
+        if word not in STOPWORDS
+    ]
+
+
+def lexical_score(query, text):
+    """
+    Basic lexical overlap between question and chunk.
+    """
+
+    query_words = set(
+        normalize_words(query)
+    )
+
+    text_words = set(
+        normalize_words(text)
+    )
+
+    if not query_words:
+        return 0.0
+
+    overlap = (
+        query_words
+        &
+        text_words
+    )
+
+    return (
+        len(overlap)
+        /
+        len(query_words)
+    )
+
+
+def phrase_score(query, text):
+    """
+    Give a small boost when an important phrase from the
+    question also appears directly in the retrieved text.
+    """
+
+    q = query.lower()
+    t = text.lower()
+
+    phrases = [
+        "bursa de performanță",
+        "bursa de performanta",
+        "punctaj minim",
+        "credite transferabile",
+        "300 de credite",
+        "înmatriculare",
+        "inmatriculare",
+        "validare",
+        "bacalaureat",
+        "criterii de departajare",
+    ]
+
+    score = 0.0
+
+    for phrase in phrases:
+
+        if (
+            phrase in q
+            and
+            phrase in t
+        ):
+            score += 1.0
+
+    return min(
+        score,
+        1.0
+    )
+
+
+# ============================================================
+# Load evaluation questions
+# ============================================================
+
+print(
+    f"Loading evaluation questions "
+    f"from {QUESTIONS_PATH}..."
+)
 
 with open(
     QUESTIONS_PATH,
     "r",
     encoding="utf-8"
 ) as file:
-    evaluation_questions = json.load(file)
 
+    evaluation_questions = json.load(
+        file
+    )
 
 print(
     f"Loaded {len(evaluation_questions)} "
     f"evaluation questions."
 )
 
+
+# ============================================================
+# Load chunk metadata
+# ============================================================
 
 print("Loading chunk metadata...")
 
@@ -70,8 +312,8 @@ with open(
     "r",
     encoding="utf-8"
 ) as file:
-    chunks = json.load(file)
 
+    chunks = json.load(file)
 
 print(
     f"Loaded {len(chunks)} chunks."
@@ -82,6 +324,7 @@ print(
 # Load embedding model
 # ============================================================
 
+print()
 print(
     "Loading embedding model: "
     f"{EMBEDDING_MODEL_NAME}"
@@ -106,8 +349,11 @@ print(
 
 
 # ============================================================
-# Load FAISS indexes
+# Load category indexes
 # ============================================================
+
+print()
+print("Loading category indexes...")
 
 category_indexes = {}
 category_mappings = {}
@@ -133,6 +379,13 @@ for category in CATEGORY_DOCUMENTS:
         )
 
 
+    if not mapping_path.exists():
+
+        raise FileNotFoundError(
+            f"Missing mapping: {mapping_path}"
+        )
+
+
     category_indexes[category] = (
         faiss.read_index(
             str(index_path)
@@ -150,238 +403,84 @@ for category in CATEGORY_DOCUMENTS:
         )
 
 
-# ============================================================
-# Text utilities
-# ============================================================
-
-def normalize_text(text):
-
-    return re.findall(
-        r"\b\w+\b",
-        text.lower(),
-        flags=re.UNICODE
-    )
-
-
-def keyword_score(
-    query,
-    text
-):
-
-    query_words = set(
-        normalize_text(query)
-    )
-
-    text_words = set(
-        normalize_text(text)
-    )
-
-    if not query_words:
-
-        return 0.0
-
-
-    return (
-        len(
-            query_words
-            &
-            text_words
-        )
-        /
-        len(query_words)
-    )
-
-
-def split_sentences(text):
-
-    pieces = re.split(
-        r"(?<=[.!?;])\s+|\n+",
-        text
-    )
-
-    return [
-        piece.strip()
-        for piece in pieces
-        if len(piece.strip()) >= 25
-    ]
+print("Category indexes loaded.")
 
 
 # ============================================================
-# Retrieve
+# Retrieve chunks
 # ============================================================
 
 def retrieve(
     question,
     category
 ):
+    """
+    Same retrieval pipeline used by the interactive RAG:
 
-    start = time.perf_counter()
+        query
+          ↓
+        embedding
+          ↓
+        FAISS top-50
+          ↓
+        semantic + lexical + phrase reranking
+          ↓
+        top-4 unique pages
+    """
+
+    retrieval_start = time.perf_counter()
 
 
     # --------------------------------------------------------
-    # Unknown question
+    # Select the appropriate index
     # --------------------------------------------------------
 
     if category == "general":
 
-        global_index = faiss.read_index(
+        index = faiss.read_index(
             "faiss_index.bin"
         )
 
+        mapping = list(
+            range(len(chunks))
+        )
 
-        embedding_start = time.perf_counter()
+    else:
 
+        if category not in category_indexes:
 
-        embedding = (
-            embedding_model.encode(
-                [question],
-                normalize_embeddings=True
+            raise ValueError(
+                f"Unknown category: {category}"
             )
-        )
 
+        index = category_indexes[
+            category
+        ]
 
-        embedding = np.asarray(
-            embedding,
-            dtype="float32"
-        )
-
-
-        embedding_time = (
-            time.perf_counter()
-            -
-            embedding_start
-        )
-
-
-        search_start = time.perf_counter()
-
-
-        search_k = min(
-            SEARCH_RESULTS,
-            global_index.ntotal
-        )
-
-
-        scores, indices = (
-            global_index.search(
-                embedding,
-                search_k
-            )
-        )
-
-
-        search_time = (
-            time.perf_counter()
-            -
-            search_start
-        )
-
-
-        results = []
-
-
-        for score, index_number in zip(
-            scores[0],
-            indices[0]
-        ):
-
-            if index_number < 0:
-
-                continue
-
-
-            chunk = chunks[
-                index_number
-            ]
-
-
-            results.append({
-                "chunk_index":
-                    index_number,
-
-                "source":
-                    chunk["source"],
-
-                "page":
-                    chunk["page"],
-
-                "text":
-                    chunk["text"],
-
-                "semantic_score":
-                    float(score),
-
-                "keyword_score":
-                    keyword_score(
-                        question,
-                        chunk["text"]
-                    ),
-
-                "combined_score":
-                    float(score)
-            })
-
-
-        results.sort(
-            key=lambda item:
-            item["combined_score"],
-            reverse=True
-        )
-
-
-        total_time = (
-            time.perf_counter()
-            - start
-        )
-
-
-        return (
-            results[:FINAL_RESULTS],
-            {
-                "embedding":
-                    embedding_time,
-
-                "faiss_search":
-                    search_time,
-
-                "reranking":
-                    0.0,
-
-                "total_retrieval":
-                    total_time
-            }
-        )
+        mapping = category_mappings[
+            category
+        ]
 
 
     # --------------------------------------------------------
-    # Category retrieval
+    # Embed query
     # --------------------------------------------------------
 
-    index = category_indexes[
-        category
-    ]
+    embedding_start = (
+        time.perf_counter()
+    )
 
-    mapping = category_mappings[
-        category
-    ]
-
-
-    embedding_start = time.perf_counter()
-
-
-    embedding = (
+    query_embedding = (
         embedding_model.encode(
             [question],
             normalize_embeddings=True
         )
     )
 
-
-    embedding = np.asarray(
-        embedding,
+    query_embedding = np.asarray(
+        query_embedding,
         dtype="float32"
     )
-
 
     embedding_time = (
         time.perf_counter()
@@ -390,22 +489,25 @@ def retrieve(
     )
 
 
-    search_start = time.perf_counter()
+    # --------------------------------------------------------
+    # FAISS search
+    # --------------------------------------------------------
 
+    search_start = (
+        time.perf_counter()
+    )
 
     search_k = min(
         SEARCH_RESULTS,
         index.ntotal
     )
 
-
-    scores, indices = (
+    semantic_scores, indices = (
         index.search(
-            embedding,
+            query_embedding,
             search_k
         )
     )
-
 
     search_time = (
         time.perf_counter()
@@ -414,16 +516,23 @@ def retrieve(
     )
 
 
+    # --------------------------------------------------------
+    # Reranking
+    # --------------------------------------------------------
+
+    rerank_start = (
+        time.perf_counter()
+    )
+
     candidates = []
 
 
-    for score, local_index in zip(
-        scores[0],
+    for semantic, local_index in zip(
+        semantic_scores[0],
         indices[0]
     ):
 
         if local_index < 0:
-
             continue
 
 
@@ -431,22 +540,29 @@ def retrieve(
             local_index
         ]
 
-
         chunk = chunks[
             original_index
         ]
 
 
-        lexical = keyword_score(
+        lexical = lexical_score(
+            question,
+            chunk["text"]
+        )
+
+
+        phrase = phrase_score(
             question,
             chunk["text"]
         )
 
 
         combined = (
-            0.85 * float(score)
+            0.70 * float(semantic)
             +
-            0.15 * lexical
+            0.20 * lexical
+            +
+            0.10 * phrase
         )
 
 
@@ -465,10 +581,13 @@ def retrieve(
                 chunk["text"],
 
             "semantic_score":
-                float(score),
+                float(semantic),
 
             "keyword_score":
                 lexical,
+
+            "phrase_score":
+                phrase,
 
             "combined_score":
                 combined
@@ -483,7 +602,7 @@ def retrieve(
 
 
     # --------------------------------------------------------
-    # Unique pages
+    # Keep one chunk per page
     # --------------------------------------------------------
 
     selected = []
@@ -522,16 +641,14 @@ def retrieve(
     reranking_time = (
         time.perf_counter()
         -
-        search_start
-        -
-        search_time
+        rerank_start
     )
 
 
-    total_time = (
+    total_retrieval = (
         time.perf_counter()
         -
-        start
+        retrieval_start
     )
 
 
@@ -548,36 +665,249 @@ def retrieve(
                 reranking_time,
 
             "total_retrieval":
-                total_time
+                total_retrieval
         }
     )
 
 
 # ============================================================
-# Evidence selection
+# Targeted evidence extraction
 # ============================================================
 
-def select_evidence(
+def extract_targeted_evidence(
     question,
     retrieved_chunks
 ):
+    """
+    Extract small text windows around terms relevant to the
+    question type.
+
+    This deliberately does NOT perform another LLM call.
+    """
+
+    question_types = (
+        detect_question_types(question)
+    )
+
+
+    question_words = set(
+        normalize_words(question)
+    )
+
+
+    search_terms = set()
+
+
+    # --------------------------------------------------------
+    # Numeric questions
+    # --------------------------------------------------------
+
+    if "number" in question_types:
+
+        search_terms.update([
+            "credite",
+            "ects",
+            "puncte",
+            "punctaj",
+            "minim",
+            "minimum",
+            "maxim",
+            "maximum",
+            "ani",
+            "medie",
+        ])
+
+
+    # --------------------------------------------------------
+    # Date questions
+    # --------------------------------------------------------
+
+    if "date" in question_types:
+
+        search_terms.update([
+            "începe",
+            "incepe",
+            "termină",
+            "termina",
+            "perioada",
+            "data",
+            "ianuarie",
+            "februarie",
+            "martie",
+            "aprilie",
+            "mai",
+            "iunie",
+            "iulie",
+            "august",
+            "septembrie",
+            "octombrie",
+            "noiembrie",
+            "decembrie",
+        ])
+
+
+    # --------------------------------------------------------
+    # Document questions
+    # --------------------------------------------------------
+
+    if "documents" in question_types:
+
+        search_terms.update([
+            "cerere",
+            "curriculum vitae",
+            "cv",
+            "document",
+            "dosar",
+            "diplom",
+            "supliment",
+            "lista de lucrări",
+            "lista",
+        ])
+
+
+    # --------------------------------------------------------
+    # Condition questions
+    # --------------------------------------------------------
+
+    if "conditions" in question_types:
+
+        search_terms.update([
+            "condi",
+            "criter",
+            "trebuie",
+            "necesar",
+            "minimum",
+            "minim",
+            "eligibil",
+            "se poate",
+        ])
+
+
+    # --------------------------------------------------------
+    # Add meaningful words from the actual question
+    # --------------------------------------------------------
+
+    search_terms.update(
+        word
+        for word in question_words
+        if len(word) >= 4
+    )
+
 
     evidence = []
 
 
-    question_words = set(
-        normalize_text(question)
-    )
-
+    # --------------------------------------------------------
+    # Search every retrieved chunk
+    # --------------------------------------------------------
 
     for chunk in retrieved_chunks:
 
-        for sentence in split_sentences(
+        compact_text = re.sub(
+            r"\s+",
+            " ",
             chunk["text"]
-        ):
+        )
 
-            sentence_words = set(
-                normalize_text(sentence)
+
+        lower_text = (
+            compact_text.lower()
+        )
+
+
+        positions = []
+
+
+        # ----------------------------------------------------
+        # Search terms
+        # ----------------------------------------------------
+
+        for term in search_terms:
+
+            position = lower_text.find(
+                term.lower()
+            )
+
+
+            if position >= 0:
+
+                positions.append(
+                    position
+                )
+
+
+        # ----------------------------------------------------
+        # Search numbers
+        # ----------------------------------------------------
+
+        if "number" in question_types:
+
+            for match in re.finditer(
+                r"\b\d+(?:[.,]\d+)?\b",
+                compact_text
+            ):
+
+                positions.append(
+                    match.start()
+                )
+
+
+        # ----------------------------------------------------
+        # Search dates
+        # ----------------------------------------------------
+
+        if "date" in question_types:
+
+            month_pattern = (
+                r"(ianuarie|februarie|martie|"
+                r"aprilie|mai|iunie|iulie|"
+                r"august|septembrie|octombrie|"
+                r"noiembrie|decembrie)"
+            )
+
+
+            for match in re.finditer(
+                r"\b\d{1,2}\s+"
+                + month_pattern,
+                lower_text
+            ):
+
+                positions.append(
+                    match.start()
+                )
+
+
+        # ----------------------------------------------------
+        # Build local windows
+        # ----------------------------------------------------
+
+        for position in positions:
+
+            left = max(
+                0,
+                position - 250
+            )
+
+
+            right = min(
+                len(compact_text),
+                position + 350
+            )
+
+
+            window = (
+                compact_text[left:right]
+                .strip()
+            )
+
+
+            if len(window) < 30:
+
+                continue
+
+
+            window_words = set(
+                normalize_words(window)
             )
 
 
@@ -585,7 +915,7 @@ def select_evidence(
                 len(
                     question_words
                     &
-                    sentence_words
+                    window_words
                 )
                 /
                 max(
@@ -596,10 +926,10 @@ def select_evidence(
 
 
             score = (
-                0.65
-                * chunk["semantic_score"]
+                0.60
+                * chunk["combined_score"]
                 +
-                0.35
+                0.40
                 * overlap
             )
 
@@ -607,7 +937,7 @@ def select_evidence(
             evidence.append({
 
                 "text":
-                    sentence,
+                    window,
 
                 "source":
                     chunk["source"],
@@ -620,12 +950,20 @@ def select_evidence(
             })
 
 
+    # --------------------------------------------------------
+    # Rank evidence
+    # --------------------------------------------------------
+
     evidence.sort(
         key=lambda item:
         item["score"],
         reverse=True
     )
 
+
+    # --------------------------------------------------------
+    # Deduplicate windows
+    # --------------------------------------------------------
 
     selected = []
 
@@ -641,13 +979,20 @@ def select_evidence(
         )
 
 
-        if normalized in seen:
+        key = (
+            item["source"],
+            item["page"],
+            normalized[:180]
+        )
+
+
+        if key in seen:
 
             continue
 
 
         seen.add(
-            normalized
+            key
         )
 
 
@@ -661,11 +1006,35 @@ def select_evidence(
             break
 
 
+    # --------------------------------------------------------
+    # Fallback to complete chunks
+    # --------------------------------------------------------
+
+    if not selected:
+
+        for chunk in retrieved_chunks:
+
+            selected.append({
+
+                "text":
+                    chunk["text"],
+
+                "source":
+                    chunk["source"],
+
+                "page":
+                    chunk["page"],
+
+                "score":
+                    chunk["combined_score"]
+            })
+
+
     return selected
 
 
 # ============================================================
-# Build prompt
+# Build LLM prompt
 # ============================================================
 
 def build_prompt(
@@ -684,6 +1053,7 @@ def build_prompt(
         context.append(
             f"""
 DOVADĂ {i}
+
 Sursă: {item['source']}
 Pagina: {item['page']}
 
@@ -692,30 +1062,48 @@ Pagina: {item['page']}
         )
 
 
+    context_text = "\n".join(
+        context
+    )
+
+
     return f"""
 /no_think
 
-Răspunde la întrebarea de mai jos
-folosind EXCLUSIV informațiile din dovezi.
+Ești un asistent care răspunde la întrebări
+despre documentele Universității Naționale
+de Știință și Tehnologie POLITEHNICA București.
 
-Întrebare:
+ÎNTREBAREA:
+
 {question}
 
-Reguli:
+Folosește EXCLUSIV dovezile furnizate.
+
+REGULI STRICTE:
+
 - Răspunde în limba română.
-- Răspunde direct.
-- Include toate condițiile relevante.
-- Păstrează valorile numerice exacte.
+- Răspunde exact la întrebarea pusă.
+- Nu răspunde la o altă întrebare apropiată.
 - Nu inventa informații.
-- Nu adăuga informații generale.
-- Nu genera surse.
-- Dacă informația nu apare în dovezi, spune:
+- Nu folosi informații generale din afara dovezilor.
+- Pentru valori numerice, folosește valoarea exactă.
+- Pentru credite, verifică exact numărul de credite.
+- Pentru date, verifică data de început și data de sfârșit.
+- Pentru condiții, include condițiile relevante.
+- Nu confunda tipurile de burse.
+- Nu menționa DOVADĂ 1, DOVADĂ 2 etc.
+- Nu genera o secțiune de surse.
+
+Dacă informația necesară nu apare în dovezi, răspunde exact:
+
 "Nu am găsit această informație în documentele disponibile."
 
 DOVEZI:
-{"".join(context)}
 
-Răspuns:
+{context_text}
+
+RĂSPUNS:
 """
 
 
@@ -750,7 +1138,9 @@ def generate_answer(
         ],
         think=False,
         options={
-            "temperature": 0.1,
+            "temperature":
+                0.0,
+
             "num_predict":
                 MAX_GENERATED_TOKENS
         }
@@ -790,35 +1180,62 @@ def evaluate_retrieval(
     expected_pages
 ):
 
-    sources = [
+    retrieved_sources = [
         item["source"]
         for item in retrieved
     ]
 
 
-    pages = [
+    retrieved_pages = [
         item["page"]
         for item in retrieved
     ]
 
 
+    # --------------------------------------------------------
+    # Deliberately unanswerable question
+    # --------------------------------------------------------
+
     if expected_source is None:
 
         return {
-            "source_correct": True,
-            "page_recall": True
+
+            "source_correct":
+                True,
+
+            "page_recall":
+                True,
+
+            "retrieval_correct":
+                True
         }
+
+
+    source_correct = (
+        expected_source
+        in retrieved_sources
+    )
+
+
+    page_recall = any(
+        page in retrieved_pages
+        for page in expected_pages
+    )
 
 
     return {
 
         "source_correct":
-            expected_source in sources,
+            source_correct,
 
         "page_recall":
-            any(
-                page in pages
-                for page in expected_pages
+            page_recall,
+
+        "retrieval_correct":
+            (
+                source_correct
+                and
+                page_recall
             )
     }
 
@@ -840,7 +1257,8 @@ def evaluate_answer(
         "nu am găsit această informație",
         "nu am găsit informația",
         "informația nu apare",
-        "nu este disponibilă"
+        "nu este disponibilă",
+        "nu pot găsi",
     ]
 
 
@@ -849,6 +1267,10 @@ def evaluate_answer(
         for phrase in refusal_phrases
     )
 
+
+    # --------------------------------------------------------
+    # Refusal question
+    # --------------------------------------------------------
 
     if should_refuse:
 
@@ -864,12 +1286,18 @@ def evaluate_answer(
             "missing_keywords": [],
 
             "refused":
-                refused
+                refused,
+
+            "refusal_correct":
+                refused,
         }
 
 
-    matched = []
+    # --------------------------------------------------------
+    # Normal question
+    # --------------------------------------------------------
 
+    matched = []
     missing = []
 
 
@@ -888,20 +1316,25 @@ def evaluate_answer(
             )
 
 
-    coverage = (
-        len(matched)
-        /
-        len(expected_keywords)
-        if expected_keywords
-        else 1.0
-    )
+    if expected_keywords:
+
+        coverage = (
+            len(matched)
+            /
+            len(expected_keywords)
+        )
+
+    else:
+
+        coverage = 1.0
 
 
     return {
-
         "answer_correct":
-            len(missing) == 0
-            and not refused,
+            (
+                len(missing) == 0
+                and not refused
+            ),
 
         "keyword_coverage":
             coverage,
@@ -913,52 +1346,62 @@ def evaluate_answer(
             missing,
 
         "refused":
-            refused
+            refused,
+
+        "refusal_correct":
+            not refused,
     }
 
 
 # ============================================================
-# Evaluation
+# Run evaluation
 # ============================================================
 
 results = []
 
-evaluation_start = time.perf_counter()
+evaluation_start = (
+    time.perf_counter()
+)
 
 
-print()
-print("=" * 80)
-print("RAG AUTOMATIC EVALUATION")
-print("=" * 80)
+for question_data in (
+    evaluation_questions
+):
 
+    question_id = (
+        question_data["id"]
+    )
 
-for item in evaluation_questions:
+    question = (
+        question_data["question"]
+    )
 
-    question_id = item["id"]
-    question = item["question"]
-    category = item["category"]
+    category = (
+        question_data["category"]
+    )
 
     expected_source = (
-        item["expected_source"]
+        question_data["expected_source"]
     )
 
     expected_pages = (
-        item["expected_pages"]
+        question_data["expected_pages"]
     )
 
     expected_keywords = (
-        item["expected_keywords"]
+        question_data["expected_keywords"]
     )
 
     should_refuse = (
-        item["should_refuse"]
+        question_data["should_refuse"]
     )
 
 
     print()
     print("=" * 80)
     print(
-        f"{question_id}: {question}"
+        f"{question_id}: "
+        f"{question}"
     )
     print("=" * 80)
 
@@ -980,17 +1423,17 @@ for item in evaluation_questions:
     print("Retrieved:")
 
 
-    for i, result in enumerate(
+    for i, item in enumerate(
         retrieved,
         start=1
     ):
 
         print(
             f"{i}. "
-            f"{result['source']}, "
-            f"pagina {result['page']} "
+            f"{item['source']}, "
+            f"pagina {item['page']} "
             f"(score "
-            f"{result['combined_score']:.4f})"
+            f"{item['combined_score']:.4f})"
         )
 
 
@@ -1004,38 +1447,70 @@ for item in evaluation_questions:
 
 
     # --------------------------------------------------------
-    # Evidence
+    # Targeted evidence
     # --------------------------------------------------------
 
-    evidence = select_evidence(
-        question,
-        retrieved
+    evidence_start = (
+        time.perf_counter()
+    )
+
+
+    evidence = (
+        extract_targeted_evidence(
+            question,
+            retrieved
+        )
+    )
+
+
+    evidence_time = (
+        time.perf_counter()
+        -
+        evidence_start
     )
 
 
     print()
-    print("Evidence passages:")
+    print(
+        "Targeted evidence:"
+    )
 
 
-    for i, evidence_item in enumerate(
+    for i, item in enumerate(
         evidence,
         start=1
     ):
 
+        preview = (
+            item["text"]
+            .replace("\n", " ")
+        )
+
+
+        if len(preview) > 160:
+
+            preview = (
+                preview[:160]
+                + "..."
+            )
+
+
         print(
             f"{i}. "
-            f"{evidence_item['source']}, "
-            f"pagina "
-            f"{evidence_item['page']}"
+            f"{item['source']}, "
+            f"pagina {item['page']} | "
+            f"{preview}"
         )
 
 
     # --------------------------------------------------------
-    # LLM
+    # Generate
     # --------------------------------------------------------
 
     print()
-    print("Generating answer...")
+    print(
+        "Generating answer..."
+    )
 
 
     (
@@ -1055,7 +1530,7 @@ for item in evaluation_questions:
 
 
     # --------------------------------------------------------
-    # Answer evaluation
+    # Evaluate answer
     # --------------------------------------------------------
 
     answer_eval = evaluate_answer(
@@ -1071,28 +1546,30 @@ for item in evaluation_questions:
 
     retrieval_score = (
         1.0
-        if (
-            retrieval_eval[
-                "source_correct"
-            ]
-            and
-            retrieval_eval[
-                "page_recall"
-            ]
-        )
+        if retrieval_eval[
+            "retrieval_correct"
+        ]
         else 0.0
+    )
+
+
+    answer_score = (
+        answer_eval[
+            "keyword_coverage"
+        ]
     )
 
 
     total_score = (
         0.50 * retrieval_score
         +
-        0.50
-        * answer_eval[
-            "keyword_coverage"
-        ]
+        0.50 * answer_score
     )
 
+
+    # --------------------------------------------------------
+    # Save result
+    # --------------------------------------------------------
 
     results.append({
 
@@ -1131,6 +1608,16 @@ for item in evaluation_questions:
                 "page_recall"
             ],
 
+        "retrieval_correct":
+            retrieval_eval[
+                "retrieval_correct"
+            ],
+
+        "evidence_pages": [
+            item["page"]
+            for item in evidence
+        ],
+
         "answer":
             answer,
 
@@ -1165,13 +1652,32 @@ for item in evaluation_questions:
                 "refused"
             ],
 
+        "refusal_correct":
+            answer_eval[
+                "refusal_correct"
+            ],
+
         "retrieval_time_seconds":
             retrieval_timing[
                 "total_retrieval"
             ],
 
+        "evidence_time_seconds":
+            evidence_time,
+
         "llm_time_seconds":
             llm_time,
+
+        "total_time_seconds":
+            (
+                retrieval_timing[
+                    "total_retrieval"
+                ]
+                +
+                evidence_time
+                +
+                llm_time
+            ),
 
         "prompt_tokens":
             prompt_tokens,
@@ -1185,7 +1691,7 @@ for item in evaluation_questions:
 
 
 # ============================================================
-# Summary
+# Calculate summary
 # ============================================================
 
 evaluation_time = (
@@ -1198,7 +1704,7 @@ evaluation_time = (
 total_questions = len(results)
 
 
-source_accuracy = (
+document_retrieval_accuracy = (
     sum(
         result["source_correct"]
         for result in results
@@ -1208,9 +1714,19 @@ source_accuracy = (
 )
 
 
-page_recall = (
+evidence_page_recall = (
     sum(
         result["page_recall"]
+        for result in results
+    )
+    /
+    total_questions
+)
+
+
+keyword_coverage = (
+    sum(
+        result["keyword_coverage"]
         for result in results
     )
     /
@@ -1230,17 +1746,7 @@ answer_accuracy = (
 
 refusal_accuracy = (
     sum(
-        result["refused"] == result["should_refuse"]
-        for result in results
-    )
-    /
-    total_questions
-)
-
-
-avg_keyword_coverage = (
-    sum(
-        result["keyword_coverage"]
+        result["refusal_correct"]
         for result in results
     )
     /
@@ -1250,7 +1756,21 @@ avg_keyword_coverage = (
 
 avg_retrieval_time = (
     sum(
-        result["retrieval_time_seconds"]
+        result[
+            "retrieval_time_seconds"
+        ]
+        for result in results
+    )
+    /
+    total_questions
+)
+
+
+avg_evidence_time = (
+    sum(
+        result[
+            "evidence_time_seconds"
+        ]
         for result in results
     )
     /
@@ -1260,7 +1780,21 @@ avg_retrieval_time = (
 
 avg_llm_time = (
     sum(
-        result["llm_time_seconds"]
+        result[
+            "llm_time_seconds"
+        ]
+        for result in results
+    )
+    /
+    total_questions
+)
+
+
+avg_total_time = (
+    sum(
+        result[
+            "total_time_seconds"
+        ]
         for result in results
     )
     /
@@ -1297,13 +1831,13 @@ print(
 
 print(
     f"Document retrieval:        "
-    f"{source_accuracy:.2%}"
+    f"{document_retrieval_accuracy:.2%}"
 )
 
 
 print(
     f"Evidence/page recall:      "
-    f"{page_recall:.2%}"
+    f"{evidence_page_recall:.2%}"
 )
 
 
@@ -1314,14 +1848,14 @@ print(
 
 
 print(
-    f"Refusal accuracy:          "
-    f"{refusal_accuracy:.2%}"
+    f"Keyword coverage:          "
+    f"{keyword_coverage:.2%}"
 )
 
 
 print(
-    f"Average keyword coverage:  "
-    f"{avg_keyword_coverage:.2%}"
+    f"Refusal accuracy:          "
+    f"{refusal_accuracy:.2%}"
 )
 
 
@@ -1332,8 +1866,20 @@ print(
 
 
 print(
+    f"Average evidence time:     "
+    f"{avg_evidence_time:.3f} s"
+)
+
+
+print(
     f"Average LLM time:          "
     f"{avg_llm_time:.3f} s"
+)
+
+
+print(
+    f"Average total time:        "
+    f"{avg_total_time:.3f} s"
 )
 
 
@@ -1363,11 +1909,7 @@ for result in results:
 
     retrieval_status = (
         "PASS"
-        if (
-            result["source_correct"]
-            and
-            result["page_recall"]
-        )
+        if result["retrieval_correct"]
         else "FAIL"
     )
 
@@ -1389,7 +1931,7 @@ for result in results:
 
 
 # ============================================================
-# Save results
+# Save detailed results
 # ============================================================
 
 report = {
@@ -1412,32 +1954,44 @@ report = {
             FINAL_RESULTS,
 
         "max_generated_tokens":
-            MAX_GENERATED_TOKENS
+            MAX_GENERATED_TOKENS,
+
+        "evaluation_type":
+            "retrieval_and_keyword_coverage",
+
+        "strict_keyword_evaluation":
+            True
     },
 
 
     "summary": {
 
         "document_retrieval_accuracy":
-            source_accuracy,
+            document_retrieval_accuracy,
 
         "evidence_page_recall":
-            page_recall,
+            evidence_page_recall,
 
         "answer_accuracy":
             answer_accuracy,
 
+        "keyword_coverage":
+            keyword_coverage,
+
         "refusal_accuracy":
             refusal_accuracy,
-
-        "average_keyword_coverage":
-            avg_keyword_coverage,
 
         "average_retrieval_time_seconds":
             avg_retrieval_time,
 
+        "average_evidence_time_seconds":
+            avg_evidence_time,
+
         "average_llm_time_seconds":
             avg_llm_time,
+
+        "average_total_time_seconds":
+            avg_total_time,
 
         "average_total_score":
             avg_total_score,
@@ -1473,4 +2027,6 @@ print(
 )
 
 print()
-print("Evaluation complete.")
+print(
+    "Evaluation complete."
+)
