@@ -257,6 +257,12 @@ def detect_question_intent(query):
     if (
         "durata studiilor" in q
         or "durata studiilor universitare" in q
+        or "durata doctoratului" in q
+        or "durata studiilor de doctorat" in q
+        or "durata studiilor universitare de doctorat" in q
+        or "durata masteratului" in q
+        or "durata licentei" in q
+        or "durata licenței" in q
         or "cât durează studiile" in q
         or "cat dureaza studiile" in q
         or "cât durează" in q
@@ -1514,7 +1520,7 @@ if ask_button:
     # ========================================================
 
     st.markdown(
-        "### 📚 Informații despre căutare"
+        "### 📚 Detalii căutare"
     )
 
 
@@ -1539,9 +1545,22 @@ if ask_button:
 
     with col2:
 
+        intent_labels = {
+            "credits": "Credite",
+            "points": "Punctaj",
+            "duration": "Durată",
+            "dates": "Perioadă / date",
+            "documents": "Documente",
+            "scholarship_activities": "Activități pentru bursă",
+            "conditions": "Condiții",
+            "general": "General",
+        }
+
+        intent = detect_question_intent(question)
+
         st.info(
             f"**Intenție:** "
-            f"{detect_question_intent(question)}"
+            f"{intent_labels.get(intent, 'General')}"
         )
 
 
@@ -1556,7 +1575,6 @@ if ask_button:
 
     seen_sources = set()
 
-
     for item in evidence:
 
         key = (
@@ -1564,14 +1582,10 @@ if ask_button:
             item["page"],
         )
 
-
         if key in seen_sources:
-
             continue
 
-
         seen_sources.add(key)
-
 
         st.markdown(
             f"""
