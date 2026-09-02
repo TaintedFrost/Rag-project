@@ -11,9 +11,7 @@ from ollama import chat
 from sentence_transformers import SentenceTransformer
 
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
+# Config
 
 EMBEDDING_MODEL_NAME = (
     "sentence-transformers/"
@@ -30,9 +28,7 @@ FINAL_RESULTS = 4
 MAX_GENERATED_TOKENS = 180
 
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
+# Page setup
 
 st.set_page_config(
     page_title="Romanian RAG Assistant",
@@ -41,9 +37,7 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# Styling
 
 st.markdown(
     """
@@ -82,9 +76,7 @@ st.markdown(
 )
 
 
-# ============================================================
-# HEADER
-# ============================================================
+# Header
 
 st.markdown(
     '<div class="main-title">🇷🇴 Romanian RAG Assistant</div>',
@@ -102,9 +94,7 @@ st.markdown(
 )
 
 
-# ============================================================
-# DOCUMENT CATEGORIES
-# ============================================================
+# Which PDF backs which category, plus the labels shown in the UI
 
 DOCUMENT_CATEGORIES = {
     "doctorat": "doc1.pdf",
@@ -121,6 +111,8 @@ CATEGORY_LABELS = {
     "masterat": "Masterat",
 }
 
+
+# Keywords used to guess which category a question belongs to
 
 CATEGORY_KEYWORDS = {
 
@@ -193,9 +185,7 @@ CATEGORY_KEYWORDS = {
 }
 
 
-# ============================================================
-# STOPWORDS
-# ============================================================
+# Words to ignore when comparing query/chunk overlap
 
 STOPWORDS = {
     "care",
@@ -234,9 +224,8 @@ STOPWORDS = {
 }
 
 
-# ============================================================
-# QUESTION INTENT
-# ============================================================
+# Rough classification of what the question is actually asking for,
+# so we can look for the right kind of answer later on.
 
 def detect_question_intent(query):
 
@@ -314,9 +303,8 @@ def detect_question_intent(query):
     return "general"
 
 
-# ============================================================
-# CATEGORY DETECTION
-# ============================================================
+# Picks the category with the longest matching keyword, so more
+# specific phrases win over shorter/more generic ones.
 
 def detect_category(query):
 
@@ -345,9 +333,7 @@ def detect_category(query):
     return matches[0][1]
 
 
-# ============================================================
-# TEXT UTILITIES
-# ============================================================
+# Small text helpers used for the keyword-overlap scoring
 
 def normalize_words(text):
 
@@ -373,16 +359,13 @@ def normalize_spaces(text):
     ).strip()
 
 
-# ============================================================
-# CACHE DATA
-# ============================================================
+# Loads chunks, the embedding model, and all the FAISS indexes once
+# and keeps them cached across reruns.
 
 @st.cache_resource(show_spinner=False)
 def load_resources():
 
-    # --------------------------------------------------------
-    # Chunks
-    # --------------------------------------------------------
+    # chunk metadata
 
     with open(
         METADATA_PATH,
@@ -393,18 +376,14 @@ def load_resources():
         chunks = json.load(file)
 
 
-    # --------------------------------------------------------
-    # Embedding model
-    # --------------------------------------------------------
+    # embedding model
 
     embedding_model = SentenceTransformer(
         EMBEDDING_MODEL_NAME
     )
 
 
-    # --------------------------------------------------------
-    # Category indexes
-    # --------------------------------------------------------
+    # one FAISS index + mapping per category
 
     indexes = {}
     mappings = {}
@@ -456,9 +435,7 @@ def load_resources():
             )
 
 
-    # --------------------------------------------------------
-    # Global index
-    # --------------------------------------------------------
+    # index covering everything, used when we can't tell the category
 
     global_index = faiss.read_index(
         "faiss_index.bin"
@@ -474,9 +451,8 @@ def load_resources():
     )
 
 
-# ============================================================
-# LOAD RESOURCES
-# ============================================================
+# Load everything up front; if a file is missing there's not much
+# point continuing, so just show the error and stop.
 
 try:
 
@@ -497,9 +473,10 @@ except Exception as error:
     st.stop()
 
 
-# ============================================================
-# RETRIEVAL
-# ============================================================
+# Runs the actual search: pick an index (category-specific if we can
+# tell, otherwise the global one), embed the query, search FAISS,
+# then rerank the hits with a bit of keyword overlap on top of the
+# semantic score.
 
 def retrieve(query):
 
@@ -527,9 +504,7 @@ def retrieve(query):
         ]
 
 
-    # --------------------------------------------------------
-    # Embedding
-    # --------------------------------------------------------
+    # embed the query
 
     embedding_start = time.perf_counter()
 
@@ -552,9 +527,7 @@ def retrieve(query):
     )
 
 
-    # --------------------------------------------------------
-    # FAISS
-    # --------------------------------------------------------
+    # FAISS search
 
     search_start = time.perf_counter()
 
@@ -579,9 +552,7 @@ def retrieve(query):
     )
 
 
-    # --------------------------------------------------------
-    # Candidate reranking
-    # --------------------------------------------------------
+    # blend semantic score with keyword overlap, then rerank
 
     rerank_start = time.perf_counter()
 
@@ -676,9 +647,7 @@ def retrieve(query):
     )
 
 
-    # --------------------------------------------------------
-    # Unique pages
-    # --------------------------------------------------------
+    # cap it at one chunk per page so we don't return duplicates
 
     selected = []
 
@@ -731,9 +700,9 @@ def retrieve(query):
     )
 
 
-# ============================================================
-# TARGETED EVIDENCE
-# ============================================================
+# For a handful of common question types we know roughly what the
+# answer looks like in the source docs, so we try to grab that exact
+# snippet with regex instead of just handing the LLM the raw chunks.
 
 def extract_evidence(
     query,
@@ -748,9 +717,7 @@ def extract_evidence(
     evidence = []
 
 
-    # ========================================================
-    # CREDITS
-    # ========================================================
+    # "how many credits" type questions
 
     if intent == "credits":
 
@@ -812,9 +779,7 @@ def extract_evidence(
                     break
 
 
-    # ========================================================
-    # DURATION
-    # ========================================================
+    # "how long do the studies last" type questions
 
     elif intent == "duration":
 
@@ -874,9 +839,7 @@ def extract_evidence(
                     break
 
 
-    # ========================================================
-    # DATES
-    # ========================================================
+    # "when does it start / end" type questions
 
     elif intent == "dates":
 
@@ -936,9 +899,7 @@ def extract_evidence(
                     break
 
 
-    # ========================================================
-    # DOCUMENTS
-    # ========================================================
+    # "what documents are needed" type questions
 
     elif intent == "documents":
 
@@ -1001,9 +962,7 @@ def extract_evidence(
                     break
 
 
-    # ========================================================
-    # POINTS
-    # ========================================================
+    # "minimum score/points" type questions
 
     elif intent == "points":
 
@@ -1063,9 +1022,7 @@ def extract_evidence(
                     break
 
 
-    # ========================================================
-    # SCHOLARSHIP ACTIVITIES
-    # ========================================================
+    # "what activities count toward the scholarship" type questions
 
     elif intent == "scholarship_activities":
 
@@ -1116,9 +1073,8 @@ def extract_evidence(
                 })
 
 
-    # ========================================================
-    # GENERAL / CONDITIONS
-    # ========================================================
+    # no specific pattern for this intent, just use the retrieved
+    # chunks as-is, ranked by their retrieval score
 
     else:
 
@@ -1144,9 +1100,7 @@ def extract_evidence(
             })
 
 
-    # ========================================================
-    # Sort + deduplicate
-    # ========================================================
+    # rank by score and drop near-duplicate snippets
 
     evidence.sort(
         key=lambda x:
@@ -1189,9 +1143,8 @@ def extract_evidence(
             break
 
 
-    # --------------------------------------------------------
-    # Fallback to chunks
-    # --------------------------------------------------------
+    # if none of the patterns matched anything, just fall back to
+    # the raw retrieved chunks so we still have something to show
 
     if not selected:
 
@@ -1216,9 +1169,9 @@ def extract_evidence(
     return selected
 
 
-# ============================================================
-# PROMPT
-# ============================================================
+# Assembles the final prompt: the evidence snippets, plus an extra
+# nudge specific to the question's intent so the model doesn't mix
+# up things like credits vs. years.
 
 def build_prompt(
     query,
@@ -1330,9 +1283,8 @@ RĂSPUNS:
 """
 
 
-# ============================================================
-# GENERATION
-# ============================================================
+# Sends the prompt to Ollama and pulls out the answer + timing/token
+# info that we show in the "performance" panel.
 
 def generate_answer(
     query,
@@ -1400,13 +1352,12 @@ def generate_answer(
     )
 
 
-# ============================================================
-# STREAMLIT INPUT
-# ============================================================
+# Question box
 
 question = st.text_area(
     "Întrebarea ta",
     placeholder=(
+        #Care este durata studiilor universitare de doctorat?
         "Exemplu: Care este durata studiilor "
         "universitare de doctorat?"
     ),
@@ -1421,9 +1372,9 @@ ask_button = st.button(
 )
 
 
-# ============================================================
-# PROCESS QUESTION
-# ============================================================
+# Everything below runs once the user hits the button: retrieve,
+# generate, then render the answer along with the sources/evidence
+# and some timing info.
 
 if ask_button:
 
@@ -1439,9 +1390,7 @@ if ask_button:
     question = question.strip()
 
 
-    # --------------------------------------------------------
-    # Retrieval
-    # --------------------------------------------------------
+    # retrieval
 
     retrieval_start = (
         time.perf_counter()
@@ -1474,9 +1423,7 @@ if ask_button:
     )
 
 
-    # --------------------------------------------------------
-    # LLM
-    # --------------------------------------------------------
+    # generation
 
     with st.spinner(
         "Generez răspunsul..."
@@ -1504,10 +1451,7 @@ if ask_button:
             st.stop()
 
 
-    # ========================================================
-    # ANSWER
-    # ========================================================
-
+    # the answer itself
 
     st.markdown("### 💬 Răspuns")
 
@@ -1515,9 +1459,7 @@ if ask_button:
         st.markdown(answer)
 
 
-    # ========================================================
-    # TOPIC
-    # ========================================================
+    # detected category + intent, mostly for debugging/transparency
 
     st.markdown(
         "### 📚 Detalii căutare"
@@ -1564,9 +1506,7 @@ if ask_button:
         )
 
 
-    # ========================================================
-    # SOURCES
-    # ========================================================
+    # which pages the answer drew from
 
     st.markdown(
         "### 📖 Surse"
@@ -1598,9 +1538,7 @@ if ask_button:
         )
 
 
-    # ========================================================
-    # OPTIONAL EVIDENCE
-    # ========================================================
+    # raw evidence snippets, tucked away since most people won't need them
 
     with st.expander(
         "🔍 Vezi dovezile folosite"
@@ -1624,9 +1562,7 @@ if ask_button:
             st.divider()
 
 
-    # ========================================================
-    # TIMING
-    # ========================================================
+    # timing breakdown, also tucked away in an expander
 
     total_time = (
         total_retrieval_time
@@ -1684,9 +1620,7 @@ if ask_button:
             )
 
 
-# ============================================================
-# FOOTER
-# ============================================================
+# Footer
 
 st.markdown("---")
 
